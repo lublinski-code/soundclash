@@ -1,0 +1,215 @@
+@import "tailwindcss";
+
+/* ─── SoundClash Dark Arcade Design System ─── */
+
+:root {
+  /* Base colors */
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #111111;
+  --bg-surface: #1a1a1a;
+  --bg-elevated: #222222;
+
+  /* Text */
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+
+  /* Borders */
+  --border-default: #27272a;
+  --border-subtle: #1e1e1e;
+
+  /* HP bar states */
+  --hp-full: #22c55e;
+  --hp-mid: #eab308;
+  --hp-low: #ef4444;
+  --hp-critical: #dc2626;
+
+  /* Damage flashes */
+  --flash-perfect: #fbbf24;
+  --flash-hit: #22c55e;
+  --flash-miss: #ef4444;
+
+  /* Accent (minimal, used sparingly) */
+  --accent: #8b5cf6;
+  --accent-dim: rgba(139, 92, 246, 0.2);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Noise Texture Overlay ─── */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+}
+
+/* ─── Screen Shake Animation ─── */
+@keyframes screenShake {
+  0%, 100% { transform: translateX(0); }
+  10% { transform: translateX(-4px) translateY(2px); }
+  20% { transform: translateX(4px) translateY(-2px); }
+  30% { transform: translateX(-3px) translateY(1px); }
+  40% { transform: translateX(3px) translateY(-1px); }
+  50% { transform: translateX(-2px); }
+  60% { transform: translateX(2px); }
+  70% { transform: translateX(-1px); }
+  80% { transform: translateX(1px); }
+}
+
+.screen-shake {
+  animation: screenShake 0.5s ease-out;
+}
+
+/* ─── Flash Overlays ─── */
+@keyframes flashRed {
+  0% { opacity: 0.4; }
+  100% { opacity: 0; }
+}
+
+@keyframes flashGold {
+  0% { opacity: 0.5; }
+  50% { opacity: 0.3; }
+  100% { opacity: 0; }
+}
+
+@keyframes flashGreen {
+  0% { opacity: 0.3; }
+  100% { opacity: 0; }
+}
+
+.flash-miss {
+  animation: flashRed 0.6s ease-out forwards;
+  background: radial-gradient(ellipse at center, transparent 40%, var(--flash-miss));
+}
+
+.flash-perfect {
+  animation: flashGold 0.8s ease-out forwards;
+  background: radial-gradient(ellipse at center, transparent 30%, var(--flash-perfect));
+}
+
+.flash-hit {
+  animation: flashGreen 0.5s ease-out forwards;
+  background: radial-gradient(ellipse at center, transparent 40%, var(--flash-hit));
+}
+
+/* ─── HP Bar ─── */
+@keyframes hpDrain {
+  from { width: var(--hp-from); }
+  to { width: var(--hp-to); }
+}
+
+/* ─── Floating Damage Number ─── */
+@keyframes floatUp {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  70% { opacity: 1; transform: translateY(-40px) scale(1.2); }
+  100% { opacity: 0; transform: translateY(-60px) scale(0.8); }
+}
+
+.damage-float {
+  animation: floatUp 1.2s ease-out forwards;
+}
+
+/* ─── Pulse Animation ─── */
+@keyframes pulse-ring {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.8; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.pulse-ring {
+  animation: pulse-ring 1.5s ease-in-out infinite;
+}
+
+/* ─── Album Reveal ─── */
+@keyframes albumReveal {
+  0% { transform: scale(0.5); opacity: 0; }
+  60% { transform: scale(1.05); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.album-reveal {
+  animation: albumReveal 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* ─── KO Text ─── */
+@keyframes koSlam {
+  0% { transform: scale(3); opacity: 0; }
+  50% { transform: scale(0.9); opacity: 1; }
+  70% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.ko-slam {
+  animation: koSlam 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* ─── VS Text ─── */
+@keyframes vsSlide {
+  0% { transform: scale(0) rotate(-10deg); opacity: 0; }
+  60% { transform: scale(1.1) rotate(2deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+.vs-animate {
+  animation: vsSlide 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* ─── Fade In ─── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+/* ─── Timer Ring (circular progress) ─── */
+.timer-ring {
+  transform: rotate(-90deg);
+}
+
+.timer-ring circle {
+  transition: stroke-dashoffset 0.1s linear;
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
