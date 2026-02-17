@@ -1,7 +1,10 @@
 // ─── Game Constants ───
 
-/** Snippet durations in seconds, progressive reveal */
-export const DEFAULT_SNIPPET_DURATIONS = [1, 3, 6, 12, 20, 30];
+/**
+ * Snippet durations in seconds, progressive reveal.
+ * -1 means "full song" (last tier plays the entire track).
+ */
+export const DEFAULT_SNIPPET_DURATIONS = [1, 3, 6, 12, 20, -1];
 
 /**
  * Damage table indexed by snippet level.
@@ -78,3 +81,9 @@ export const DAMAGE_LABELS: Record<string, string> = {
   HIT: "HIT",
   MISS: "MISS",
 };
+
+/** Pick N random genres from the available list */
+export function getRandomGenres(count = 1): string[] {
+  const shuffled = [...GENRES].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, count).map((g) => g.id);
+}

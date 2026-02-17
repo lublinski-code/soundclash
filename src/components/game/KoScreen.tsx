@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "@/store/gameStore";
-import { extractDominantColor } from "@/lib/utils/colorExtract";
+import { createPlaylist } from "@/lib/spotify/api";
 
 export function KoScreen() {
   const router = useRouter();
-  const { winner, teams, roundResults, config, dispatch } = useGameStore();
+  const { winner, teams, roundResults, songPool, dispatch } = useGameStore();
   const [showDetails, setShowDetails] = useState(false);
+  const [playlistState, setPlaylistState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [playlistUrl, setPlaylistUrl] = useState<string | null>(null);
 
   const loser = teams.find((t) => t.id !== winner?.id);
 
@@ -152,17 +154,85 @@ export function KoScreen() {
             </div>
           </div>
 
+          {/* Save as Playlist */}
+          <div className="pt-2">
+            {playlistState === "idle" && (
+              <button
+                onClick={async () => {
+                  setPlaylistState("saving");
+                  try {
+                    const trackUris = roundResults
+                      .map((r) => {
+                        const track = songPool.find((t) => t.id === r.trackId);
+                        return track?.uri;
+                      })
+                      .filter((uri): uri is string => !!uri);
+                    const uniqueUris = [...new Set(trackUris)];
+                    if (uniqueUris.length === 0) {
+                      setPlaylistState("error");
+                      return;
+                    }
+                    const date = new Date().toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    });
+                    const pl = await createPlaylist(
+                      `SoundClash Battle - ${date}`,
+                      uniqueUris,
+                      `Songs from a SoundClash battle on ${date}. ${roundResults.length} rounds played.`
+                    );
+                    setPlaylistUrl(pl.external_urls?.spotify ?? null);
+                    setPlaylistState("saved");
+                  } catch (err) {
+                    console.error("Playlist creation failed:", err);
+                    setPlaylistState("error");
+                  }
+                }}
+                className="btn-secondary"
+              >
+                💾 Save as Spotify Playlist
+              </button>
+            )}
+            {playlistState === "saving" && (
+              <div className="flex items-center justify-center gap-2 text-sm text-[var(--text-muted)]">
+                <div className="w-4 h-4 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
+                Creating playlist...
+              </div>
+            )}
+            {playlistState === "saved" && (
+              <div className="text-sm text-[var(--hp-full)]">
+                ✓ Playlist saved!{" "}
+                {playlistUrl && (
+                  <a
+                    href={playlistUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:text-white"
+                  >
+                    Open in Spotify
+                  </a>
+                )}
+              </div>
+            )}
+            {playlistState === "error" && (
+              <div className="text-sm text-[var(--flash-miss)]">
+                Failed to create playlist. Try reconnecting to Spotify.
+              </div>
+            )}
+          </div>
+
           {/* Actions */}
-          <div className="flex gap-4 justify-center pt-4">
+          <div className="flex gap-4 justify-center pt-6">
             <button
               onClick={handlePlayAgain}
-              className="px-8 py-3 rounded-lg bg-[var(--accent)] hover:bg-[#7c3aed] text-white font-bold text-lg transition-all hover:scale-105 active:scale-95"
+              className="btn-primary px-10 text-lg font-black"
             >
               REMATCH
             </button>
             <button
               onClick={handleBackToHome}
-              className="px-8 py-3 rounded-lg border border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-medium transition-all"
+              className="btn-secondary"
             >
               Back to Lobby
             </button>

@@ -10,6 +10,12 @@ const SCOPES = [
   "user-read-private",
   "user-modify-playback-state",
   "user-read-playback-state",
+  "user-library-read",
+  "user-top-read",
+  "playlist-read-private",
+  "playlist-read-collaborative",
+  "playlist-modify-private",
+  "playlist-modify-public",
 ].join(" ");
 
 function getClientId(): string {

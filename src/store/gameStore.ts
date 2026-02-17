@@ -10,7 +10,6 @@ import {
 import { gameReducer, type GameAction } from "@/lib/game/engine";
 
 type GameStore = {
-  // Game state
   phase: GamePhase;
   teams: [Team, Team];
   config: GameConfig;
@@ -22,7 +21,6 @@ type GameStore = {
   roundResults: RoundResult[];
   winner: Team | null;
 
-  // Actions
   dispatch: (action: GameAction) => void;
   setTeams: (teams: [Team, Team]) => void;
   setConfig: (config: Partial<GameConfig>) => void;
@@ -30,8 +28,20 @@ type GameStore = {
 };
 
 const defaultTeams: [Team, Team] = [
-  { id: "team-1", name: "Team Alpha", members: [], hp: DEFAULT_STARTING_HP, activeIndex: 0 },
-  { id: "team-2", name: "Team Beta", members: [], hp: DEFAULT_STARTING_HP, activeIndex: 0 },
+  {
+    id: "team-1",
+    name: "Player 1",
+    members: [{ id: "default-p1", name: "Player 1" }],
+    hp: DEFAULT_STARTING_HP,
+    activeIndex: 0,
+  },
+  {
+    id: "team-2",
+    name: "Player 2",
+    members: [{ id: "default-p2", name: "Player 2" }],
+    hp: DEFAULT_STARTING_HP,
+    activeIndex: 0,
+  },
 ];
 
 const defaultConfig: GameConfig = {

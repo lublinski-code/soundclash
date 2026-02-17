@@ -7,7 +7,7 @@ import { SpotifyConnect } from "@/components/landing/SpotifyConnect";
 import { useSpotifyStore } from "@/store/spotifyStore";
 import { getAccessToken, isAuthenticated } from "@/lib/spotify/auth";
 import { getCurrentUser } from "@/lib/spotify/api";
-import { initPlayer } from "@/lib/spotify/player";
+import { initPlayer, isPlayerConnected, getDeviceId } from "@/lib/spotify/player";
 
 export default function LandingPage() {
   const router = useRouter();
@@ -15,18 +15,27 @@ export default function LandingPage() {
     useSpotifyStore();
   const [loading, setLoading] = useState(true);
 
-  // Check for existing auth on mount
   useEffect(() => {
     async function checkAuth() {
       try {
+        if (typeof window !== "undefined" && isPlayerConnected()) {
+          const did = getDeviceId();
+          if (did) {
+            setDeviceId(did);
+            setPlayerReady(true);
+          }
+          setLoading(false);
+          return;
+        }
+
         if (isAuthenticated()) {
           const token = await getAccessToken();
           if (token) {
             setAccessToken(token);
             const user = await getCurrentUser();
             const isPremium = user.product === "premium";
-            console.log("Spotify user:", user.display_name, "| Product:", user.product, "| Premium:", isPremium);
-            
+            console.log("Spotify user:", user.display_name, "| Product:", user.product);
+
             setUserInfo(
               user.display_name,
               user.images?.[0]?.url ?? null,
@@ -41,7 +50,6 @@ export default function LandingPage() {
               return;
             }
 
-            // Initialize player
             await initPlayer(
               (deviceId) => {
                 setDeviceId(deviceId);

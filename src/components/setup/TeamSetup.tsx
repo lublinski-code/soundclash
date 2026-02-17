@@ -8,6 +8,7 @@ function generateId() {
   return Math.random().toString(36).substring(2, 9);
 }
 
+/** Full team panel with members list (shown when team has 2+ members) */
 function TeamPanel({
   team,
   teamIndex,
@@ -23,10 +24,7 @@ function TeamPanel({
     const name = newMemberName.trim();
     if (!name) return;
     const player: Player = { id: generateId(), name };
-    onUpdate({
-      ...team,
-      members: [...team.members, player],
-    });
+    onUpdate({ ...team, members: [...team.members, player] });
     setNewMemberName("");
   };
 
@@ -48,7 +46,6 @@ function TeamPanel({
       className="flex-1 p-6 rounded-xl border border-[var(--border-default)] bg-[var(--bg-secondary)]"
       style={{ borderTopColor: sideColor, borderTopWidth: "2px" }}
     >
-      {/* Team Name */}
       <input
         type="text"
         value={team.name}
@@ -57,7 +54,6 @@ function TeamPanel({
         placeholder="Team Name"
       />
 
-      {/* Members List */}
       <div className="space-y-2 mb-4">
         {team.members.map((member) => (
           <div
@@ -74,28 +70,21 @@ function TeamPanel({
             </button>
           </div>
         ))}
-
-        {team.members.length === 0 && (
-          <p className="text-xs text-[var(--text-muted)] text-center py-4">
-            No members yet. Add at least one player.
-          </p>
-        )}
       </div>
 
-      {/* Add Member */}
       <div className="flex gap-2">
         <input
           type="text"
           value={newMemberName}
           onChange={(e) => setNewMemberName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && addMember()}
-          placeholder="Player name"
-          className="flex-1 px-3 py-2 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-default)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[var(--accent)] transition-colors"
+          placeholder="Add player"
+          className="input flex-1 min-h-[40px] text-sm"
         />
         <button
           onClick={addMember}
           disabled={!newMemberName.trim()}
-          className="px-4 py-2 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-default)] text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent)] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+          className="btn-secondary min-h-[40px] px-4"
         >
           Add
         </button>
@@ -104,8 +93,40 @@ function TeamPanel({
   );
 }
 
+/** Simple 1v1 player name editor */
+function PlayerNameInput({
+  player,
+  side,
+  onChange,
+}: {
+  player: Player;
+  side: "left" | "right";
+  onChange: (name: string) => void;
+}) {
+  const color = side === "left" ? "var(--hp-full)" : "var(--hp-low)";
+
+  return (
+    <div
+      className="flex-1 p-5 rounded-xl border border-[var(--border-default)] bg-[var(--bg-secondary)]"
+      style={{ borderTopColor: color, borderTopWidth: "2px" }}
+    >
+      <input
+        type="text"
+        value={player.name}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full bg-transparent text-xl font-bold text-[var(--text-primary)] border-none outline-none text-center placeholder:text-[var(--text-muted)]"
+        placeholder="Player name"
+      />
+    </div>
+  );
+}
+
 export function TeamSetup() {
   const { teams, setTeams } = useGameStore();
+  const [expanded, setExpanded] = useState(false);
+
+  const is1v1 =
+    teams[0].members.length <= 1 && teams[1].members.length <= 1 && !expanded;
 
   const updateTeam = (index: 0 | 1) => (team: Team) => {
     const newTeams = [...teams] as [Team, Team];
@@ -113,11 +134,64 @@ export function TeamSetup() {
     setTeams(newTeams);
   };
 
+  const updatePlayerName = (teamIdx: 0 | 1, name: string) => {
+    const team = teams[teamIdx];
+    const player = team.members[0] ?? { id: `default-p${teamIdx + 1}`, name };
+    const updatedTeam: Team = {
+      ...team,
+      name,
+      members: [{ ...player, name }],
+    };
+    const newTeams = [...teams] as [Team, Team];
+    newTeams[teamIdx] = updatedTeam;
+    setTeams(newTeams);
+  };
+
+  if (is1v1) {
+    const p1 = teams[0].members[0] ?? { id: "default-p1", name: "Player 1" };
+    const p2 = teams[1].members[0] ?? { id: "default-p2", name: "Player 2" };
+
+    return (
+      <div className="space-y-4">
+        <div className="flex justify-end">
+          <button
+            onClick={() => setExpanded(true)}
+            className="btn-muted text-xs"
+          >
+            Switch to Teams →
+          </button>
+        </div>
+        <div className="flex gap-4 items-stretch">
+          <PlayerNameInput
+            player={p1}
+            side="left"
+            onChange={(name) => updatePlayerName(0, name)}
+          />
+          <div className="flex items-center">
+            <span className="text-2xl font-black text-[var(--text-muted)]">VS</span>
+          </div>
+          <PlayerNameInput
+            player={p2}
+            side="right"
+            onChange={(name) => updatePlayerName(1, name)}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-bold text-[var(--text-primary)] uppercase tracking-wider">
-        Teams
-      </h2>
+      <div className="flex justify-end">
+        {expanded && teams[0].members.length <= 1 && teams[1].members.length <= 1 && (
+          <button
+            onClick={() => setExpanded(false)}
+            className="btn-muted text-xs"
+          >
+            ← Switch to 1v1
+          </button>
+        )}
+      </div>
       <div className="flex gap-4 items-stretch">
         <TeamPanel team={teams[0]} teamIndex={0} onUpdate={updateTeam(0)} />
         <div className="flex items-center">

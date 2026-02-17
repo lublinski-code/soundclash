@@ -5,8 +5,8 @@ import { useEffect, useState } from "react";
 type HpBarProps = {
   hp: number;
   maxHp: number;
-  teamName: string;
-  playerName: string;
+  label: string;
+  subLabel?: string;
   side: "left" | "right";
   isActive: boolean;
 };
@@ -18,12 +18,11 @@ function getHpColor(percent: number): string {
   return "var(--hp-critical)";
 }
 
-export function HpBar({ hp, maxHp, teamName, playerName, side, isActive }: HpBarProps) {
+export function HpBar({ hp, maxHp, label, subLabel, side, isActive }: HpBarProps) {
   const [displayHp, setDisplayHp] = useState(hp);
   const percent = Math.max(0, (displayHp / maxHp) * 100);
   const color = getHpColor(percent);
 
-  // Animate HP changes
   useEffect(() => {
     if (displayHp === hp) return;
 
@@ -49,24 +48,22 @@ export function HpBar({ hp, maxHp, teamName, playerName, side, isActive }: HpBar
     <div
       className={`flex-1 space-y-1 ${side === "right" ? "text-right" : ""}`}
     >
-      {/* Team Name + Active Player */}
       <div className={`flex items-baseline gap-2 ${side === "right" ? "justify-end" : ""}`}>
         <span className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider">
-          {teamName}
+          {label}
         </span>
-        {isActive && (
+        {subLabel && isActive && (
           <span className="text-xs text-[var(--accent)] font-medium">
-            &#x25B6; {playerName}
+            &#x25B6; {subLabel}
           </span>
         )}
-        {!isActive && (
+        {subLabel && !isActive && (
           <span className="text-xs text-[var(--text-muted)]">
-            {playerName}
+            {subLabel}
           </span>
         )}
       </div>
 
-      {/* HP Bar */}
       <div className="relative h-6 rounded-sm overflow-hidden bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
         <div
           className="absolute inset-y-0 h-full transition-all duration-500 ease-out rounded-sm"
@@ -77,7 +74,6 @@ export function HpBar({ hp, maxHp, teamName, playerName, side, isActive }: HpBar
             boxShadow: `0 0 10px ${color}`,
           }}
         />
-        {/* HP Text */}
         <div className="absolute inset-0 flex items-center justify-center">
           <span className="text-xs font-bold text-white mix-blend-difference tabular-nums">
             {Math.round(displayHp)} / {maxHp}

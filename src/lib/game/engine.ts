@@ -19,12 +19,62 @@ export type GameAction =
   | { type: "SHOW_VS" }
   | { type: "START_SNIPPET" }
   | { type: "NEXT_SNIPPET" }
-  | { type: "SUBMIT_GUESS"; trackId: string }
+  | { type: "SUBMIT_GUESS"; trackId: string; trackName: string; artistNames: string[] }
   | { type: "SKIP_GUESS" }
+  | { type: "GIVE_UP" }
   | { type: "SHOW_DAMAGE" }
   | { type: "SHOW_ALBUM" }
   | { type: "END_ROUND" }
   | { type: "RESET" };
+
+/**
+ * Normalize a song title for fuzzy matching.
+ * Removes common edition suffixes, remaster tags, parenthetical info, etc.
+ */
+function normalizeTitle(title: string): string {
+  return title
+    .toLowerCase()
+    // Remove common suffixes in parentheses/brackets
+    .replace(/\s*[\(\[].*?(remaster|deluxe|edition|version|remix|live|acoustic|radio|single|extended|original|bonus|demo|anniversary|mono|stereo).*?[\)\]]/gi, "")
+    // Remove trailing " - " variants (e.g., "Song - Remastered 2021")
+    .replace(/\s*-\s*(remaster|deluxe|edition|version|remix|live|acoustic|radio|single|extended|original|bonus|demo|anniversary|\d{4}).*$/gi, "")
+    // Remove "feat." and featured artists from comparison
+    .replace(/\s*[\(\[]?\s*feat\.?\s+[^\)\]]+[\)\]]?/gi, "")
+    // Normalize whitespace and punctuation
+    .replace(/[''`]/g, "'")
+    .replace(/[""]/g, '"')
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Check if the guessed track matches the target track.
+ * Uses fuzzy matching to handle different editions (remaster, deluxe, live, etc.)
+ */
+function isTrackMatch(
+  guessId: string,
+  guessName: string,
+  guessArtists: string[],
+  target: SpotifyTrack
+): boolean {
+  // Exact ID match is always correct
+  if (guessId === target.id) return true;
+
+  // Fuzzy match: compare normalized titles and check artist overlap
+  const normalizedGuess = normalizeTitle(guessName);
+  const normalizedTarget = normalizeTitle(target.name);
+
+  // Titles must match (after normalization)
+  if (normalizedGuess !== normalizedTarget) return false;
+
+  // At least one artist must match (handles "feat." variations)
+  const targetArtists = target.artists.map((a) => a.name.toLowerCase());
+  const guessArtistsLower = guessArtists.map((a) => a.toLowerCase());
+
+  return guessArtistsLower.some((g) =>
+    targetArtists.some((t) => g.includes(t) || t.includes(g))
+  );
+}
 
 /**
  * Pure game state reducer. All game logic lives here.
@@ -73,7 +123,24 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       const currentSong = state.songPool[state.currentSongIndex];
       if (!currentSong) return state;
 
-      const correct = action.trackId === currentSong.id;
+      const correct = isTrackMatch(
+        action.trackId,
+        action.trackName,
+        action.artistNames,
+        currentSong
+      );
+      const maxLevel = state.config.snippetDurations.length - 1;
+
+      // Wrong guess but not at max level → advance to next snippet (no damage yet)
+      if (!correct && state.currentSnippetLevel < maxLevel) {
+        return {
+          ...state,
+          phase: "SNIPPET",
+          currentSnippetLevel: state.currentSnippetLevel + 1,
+        };
+      }
+
+      // Correct guess OR wrong at final tier → apply damage
       const damage = calculateDamage(
         state.currentSnippetLevel,
         correct,
@@ -152,6 +219,45 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         snippetLevel: state.currentSnippetLevel,
         correct: false,
         damage,
+        hpAfter: newHp,
+      };
+
+      return {
+        ...state,
+        phase: "DAMAGE",
+        teams: newTeams,
+        roundResults: [...state.roundResults, result],
+      };
+    }
+
+    case "GIVE_UP": {
+      const currentSong = state.songPool[state.currentSongIndex];
+      if (!currentSong) return state;
+
+      // Always apply max damage (last entry in damage table = 30)
+      const maxDamage =
+        state.config.damageTable[state.config.damageTable.length - 1] ?? 30;
+
+      const teamIdx = state.currentTeamIndex;
+      const team = state.teams[teamIdx];
+      const newHp = Math.max(0, team.hp - maxDamage);
+
+      const newTeams = [...state.teams] as [Team, Team];
+      newTeams[teamIdx] = { ...team, hp: newHp };
+
+      const activePlayer = team.members[team.activeIndex];
+
+      const result: RoundResult = {
+        roundNumber: state.roundNumber,
+        teamId: team.id,
+        playerId: activePlayer?.id ?? "",
+        trackId: currentSong.id,
+        trackName: currentSong.name,
+        artistName: currentSong.artists.map((a) => a.name).join(", "),
+        albumArt: currentSong.album.images[0]?.url ?? "",
+        snippetLevel: state.currentSnippetLevel,
+        correct: false,
+        damage: maxDamage,
         hpAfter: newHp,
       };
 

@@ -6,12 +6,14 @@ import { useGameStore } from "@/store/gameStore";
 import type { SpotifyTrack } from "@/lib/game/types";
 
 type GuessInputProps = {
-  onGuess: (trackId: string) => void;
+  onGuess: (trackId: string, trackName: string, artistNames: string[]) => void;
   onSkip: () => void;
+  onGiveUp: () => void;
+  onReplay: () => void;
   disabled: boolean;
 };
 
-export function GuessInput({ onGuess, onSkip, disabled }: GuessInputProps) {
+export function GuessInput({ onGuess, onSkip, onGiveUp, onReplay, disabled }: GuessInputProps) {
   const { config, currentSnippetLevel } = useGameStore();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SpotifyTrack[]>([]);
@@ -53,7 +55,7 @@ export function GuessInput({ onGuess, onSkip, disabled }: GuessInputProps) {
   const handleSelect = (track: SpotifyTrack) => {
     setShowResults(false);
     setQuery(`${track.name} — ${track.artists.map((a) => a.name).join(", ")}`);
-    onGuess(track.id);
+    onGuess(track.id, track.name, track.artists.map((a) => a.name));
   };
 
   // Reset on snippet level change
@@ -65,7 +67,7 @@ export function GuessInput({ onGuess, onSkip, disabled }: GuessInputProps) {
   }, [currentSnippetLevel]);
 
   return (
-    <div className="w-full max-w-lg mx-auto space-y-3">
+    <div className="w-full max-w-xl mx-auto space-y-4">
       {/* Search Input */}
       <div className="relative">
         <input
@@ -75,36 +77,36 @@ export function GuessInput({ onGuess, onSkip, disabled }: GuessInputProps) {
           onChange={(e) => setQuery(e.target.value)}
           disabled={disabled}
           placeholder="Start typing a song name..."
-          className="w-full px-4 py-3 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-default)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[var(--accent)] transition-colors disabled:opacity-40 text-sm"
+          className="input w-full text-base"
           autoComplete="off"
         />
         {searching && (
-          <div className="absolute right-3 top-1/2 -translate-y-1/2">
-            <div className="w-4 h-4 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
+          <div className="absolute right-4 top-1/2 -translate-y-1/2">
+            <div className="w-5 h-5 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
           </div>
         )}
 
         {/* Autocomplete Dropdown */}
         {showResults && results.length > 0 && (
-          <div className="absolute z-50 w-full mt-1 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-default)] shadow-2xl overflow-hidden">
+          <div className="absolute z-50 w-full mt-2 rounded-[var(--radius-lg)] bg-[var(--bg-elevated)] border border-[var(--border-default)] shadow-2xl overflow-hidden">
             {results.map((track) => (
               <button
                 key={track.id}
                 onClick={() => handleSelect(track)}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[var(--bg-surface)] transition-colors text-left"
+                className="w-full flex items-center gap-4 px-4 py-3 hover:bg-[var(--bg-surface)] transition-colors text-left"
               >
                 {track.album.images[2] && (
                   <img
                     src={track.album.images[2].url}
                     alt=""
-                    className="w-10 h-10 rounded object-cover"
+                    className="w-12 h-12 rounded-[var(--radius-sm)] object-cover flex-shrink-0"
                   />
                 )}
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm text-[var(--text-primary)] truncate">
+                  <div className="text-base text-[var(--text-primary)] truncate font-medium">
                     {track.name}
                   </div>
-                  <div className="text-xs text-[var(--text-muted)] truncate">
+                  <div className="text-sm text-[var(--text-muted)] truncate">
                     {track.artists.map((a) => a.name).join(", ")}
                   </div>
                 </div>
@@ -115,25 +117,39 @@ export function GuessInput({ onGuess, onSkip, disabled }: GuessInputProps) {
       </div>
 
       {/* Action Buttons */}
-      <div className="flex gap-3 justify-center">
+      <div className="flex gap-3 justify-center flex-wrap">
+        {/* Replay */}
+        <button
+          onClick={onReplay}
+          disabled={disabled}
+          className="btn-secondary"
+          title="Replay snippet"
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+            <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
+          </svg>
+          Replay
+        </button>
+
+        {/* Skip (hear more) */}
         {canSkip && (
           <button
             onClick={onSkip}
             disabled={disabled}
-            className="px-6 py-2 rounded-lg border border-[var(--border-default)] text-sm text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:border-[var(--text-muted)] transition-all disabled:opacity-30"
+            className="btn-secondary"
           >
             Skip (hear more)
           </button>
         )}
-        {!canSkip && (
-          <button
-            onClick={onSkip}
-            disabled={disabled}
-            className="px-6 py-2 rounded-lg border border-[var(--flash-miss)] text-sm text-[var(--flash-miss)] hover:bg-[var(--flash-miss)] hover:text-white transition-all disabled:opacity-30"
-          >
-            Give up
-          </button>
-        )}
+
+        {/* Give Up -- always visible */}
+        <button
+          onClick={onGiveUp}
+          disabled={disabled}
+          className="btn-danger"
+        >
+          Give up
+        </button>
       </div>
     </div>
   );

@@ -14,10 +14,13 @@ export function VsSplash({ onComplete }: VsSplashProps) {
   const activeTeam = teams[currentTeamIndex];
   const activePlayer = activeTeam.members[activeTeam.activeIndex];
 
+  const is1v1 = teams[0].members.length === 1 && teams[1].members.length === 1;
+  const displayName = is1v1
+    ? activePlayer?.name ?? "Unknown"
+    : activeTeam.name;
+
   useEffect(() => {
-    // Trigger animation
     const showTimer = setTimeout(() => setShow(true), 100);
-    // Auto-advance after 2.5 seconds
     const advanceTimer = setTimeout(() => onComplete(), 2500);
 
     return () => {
@@ -26,51 +29,50 @@ export function VsSplash({ onComplete }: VsSplashProps) {
     };
   }, [onComplete]);
 
+  const teamColor = currentTeamIndex === 0 ? "var(--hp-full)" : "var(--hp-low)";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-primary)]">
-      <div className="text-center space-y-6">
-        {/* Active team highlight */}
-        <div className={`space-y-2 transition-all duration-500 ${show ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
-          <p className="text-sm uppercase tracking-widest text-[var(--text-muted)]">
+      <div className="text-center space-y-8">
+        <div className={`space-y-3 transition-all duration-500 ${show ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+          <p className="text-sm uppercase tracking-[0.2em] text-[var(--text-muted)] font-medium">
             Now playing
           </p>
-          <h2 className="text-5xl md:text-7xl font-black text-[var(--text-primary)] tracking-tighter">
-            {activeTeam.name}
+          <h2
+            className="text-5xl md:text-7xl lg:text-8xl font-black text-[var(--text-primary)] tracking-tighter pulse-ring"
+            style={{
+              textShadow: `0 0 40px ${teamColor}40`,
+            }}
+          >
+            {displayName}
           </h2>
-          <p className="text-lg text-[var(--accent)]">
-            {activePlayer?.name ?? "Unknown"}
-          </p>
+          {!is1v1 && (
+            <p className="text-xl font-semibold" style={{ color: teamColor }}>
+              {activePlayer?.name ?? "Unknown"}
+            </p>
+          )}
         </div>
 
-        {/* VS divider */}
         <div className={`transition-all duration-300 delay-300 ${show ? "opacity-100 scale-100" : "opacity-0 scale-0"}`}>
-          <div className="flex items-center justify-center gap-4">
+          <div className="flex items-center justify-center gap-6">
             <div
-              className="h-px w-20"
-              style={{
-                background: currentTeamIndex === 0
-                  ? "var(--hp-full)"
-                  : "var(--hp-low)",
-              }}
+              className="h-0.5 w-24 rounded-full"
+              style={{ background: teamColor }}
             />
-            <span className="text-3xl font-black vs-animate" style={{
-              color: currentTeamIndex === 0 ? "var(--hp-full)" : "var(--hp-low)"
-            }}>
-              &#x266B;
+            <span
+              className="text-4xl font-black vs-animate"
+              style={{ color: teamColor }}
+            >
+              ♫
             </span>
             <div
-              className="h-px w-20"
-              style={{
-                background: currentTeamIndex === 0
-                  ? "var(--hp-full)"
-                  : "var(--hp-low)",
-              }}
+              className="h-0.5 w-24 rounded-full"
+              style={{ background: teamColor }}
             />
           </div>
         </div>
 
-        {/* Snippet hint */}
-        <p className={`text-xs text-[var(--text-muted)] transition-all duration-500 delay-500 ${show ? "opacity-100" : "opacity-0"}`}>
+        <p className={`text-sm text-[var(--text-muted)] transition-all duration-500 delay-500 ${show ? "opacity-100" : "opacity-0"}`}>
           Listen carefully and guess the song
         </p>
       </div>
