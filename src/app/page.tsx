@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { HeroSection } from "@/components/landing/HeroSection";
 import { SpotifyConnect } from "@/components/landing/SpotifyConnect";
@@ -9,8 +9,18 @@ import { getAccessToken, isAuthenticated } from "@/lib/spotify/auth";
 import { getCurrentUser } from "@/lib/spotify/api";
 import { initPlayer, isPlayerConnected, getDeviceId } from "@/lib/spotify/player";
 
-// Generate star particles for background
-function generateStars(count: number) {
+// Star particle type
+type Star = {
+  id: number;
+  left: number;
+  top: number;
+  delay: number;
+  duration: number;
+  size: number;
+};
+
+// Generate star particles for background (client-side only)
+function generateStars(count: number): Star[] {
   return Array.from({ length: count }, (_, i) => ({
     id: i,
     left: Math.random() * 100,
@@ -26,8 +36,12 @@ export default function LandingPage() {
   const { userName, isPlayerReady, setAccessToken, setDeviceId, setPlayerReady, setUserInfo, setError } =
     useSpotifyStore();
   const [loading, setLoading] = useState(true);
+  const [stars, setStars] = useState<Star[]>([]);
 
-  const stars = useMemo(() => generateStars(50), []);
+  // Generate stars on client-side only to avoid hydration mismatch
+  useEffect(() => {
+    setStars(generateStars(50));
+  }, []);
 
   useEffect(() => {
     async function checkAuth() {

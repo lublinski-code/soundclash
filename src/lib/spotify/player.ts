@@ -179,8 +179,8 @@ export async function initPlayer(
  * Play a snippet of a track for a specific duration.
  *
  * Fixes for the "plays whole song" bug:
- *   1. Timer starts AFTER playTrack() resolves (not before)
- *   2. Position polling safety net: checks every 250ms and force-pauses
+ *   1. Wait for playback to actually start before starting timer
+ *   2. Position polling safety net: checks every 200ms and force-pauses
  *      if playback exceeds the intended duration
  *   3. Elapsed time fallback: uses performance.now() as backup
  *   4. All existing timers/polls are cleared before starting
@@ -201,8 +201,34 @@ export async function playSnippet(
   // Clear any existing snippet timers
   clearSnippetTimers();
 
-  // Start playback at offset, AWAIT completion before starting timer
+  console.log(`[Player] Starting snippet: ${durationMs}ms from offset ${startOffsetMs}ms`);
+
+  // Start playback at offset
   await playTrack(trackUri, deviceId, startOffsetMs);
+
+  // Wait for playback to actually start (API returns 202 = async)
+  // Poll player state until we see it's playing
+  let playbackStarted = false;
+  for (let i = 0; i < 20; i++) {
+    // Max 2 seconds wait
+    await new Promise((r) => setTimeout(r, 100));
+    if (player) {
+      try {
+        const state = await player.getCurrentState();
+        if (state && !state.paused) {
+          playbackStarted = true;
+          console.log(`[Player] Playback started at position ${state.position}ms`);
+          break;
+        }
+      } catch {
+        // Ignore polling errors during startup
+      }
+    }
+  }
+
+  if (!playbackStarted) {
+    console.warn("[Player] Playback may not have started, proceeding with timer anyway");
+  }
 
   const maxPositionMs = startOffsetMs + durationMs;
   const startTime = performance.now();
@@ -212,6 +238,7 @@ export async function playSnippet(
     if (ended) return;
     ended = true;
     clearSnippetTimers();
+    console.log(`[Player] Ending snippet after ${(performance.now() - startTime).toFixed(0)}ms`);
     try {
       if (deviceId) await pausePlayback(deviceId);
     } catch {
@@ -223,9 +250,8 @@ export async function playSnippet(
   // Primary timer: fire after durationMs
   snippetTimeout = setTimeout(endSnippet, durationMs);
 
-  // Safety net: poll every 250ms using BOTH position AND elapsed time
-  // If the browser throttled the setTimeout (e.g. tab in background),
-  // this catches runaway playback.
+  // Safety net: poll every 200ms using BOTH position AND elapsed time
+  // This catches runaway playback if setTimeout is throttled (background tab)
   if (player) {
     positionPollInterval = setInterval(async () => {
       if (ended || !player) {
@@ -235,8 +261,8 @@ export async function playSnippet(
 
       // Fallback 1: Check elapsed wall-clock time (always reliable)
       const elapsedMs = performance.now() - startTime;
-      if (elapsedMs >= durationMs + 100) {
-        // 100ms grace period
+      if (elapsedMs >= durationMs + 50) {
+        // 50ms grace period
         console.warn(
           `[Player] Elapsed time safety net: ${elapsedMs.toFixed(0)}ms >= ${durationMs}ms, force-pausing`
         );
@@ -256,7 +282,7 @@ export async function playSnippet(
       } catch {
         // Ignore polling errors
       }
-    }, 250);
+    }, 200);
   }
 }
 
