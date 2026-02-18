@@ -39,12 +39,18 @@ function TeamPanel({
     onUpdate({ ...team, name });
   };
 
-  const sideColor = teamIndex === 0 ? "var(--hp-full)" : "var(--hp-low)";
+  const isLeft = teamIndex === 0;
+  const sideColor = isLeft ? "var(--hp-full)" : "var(--hp-low)";
+  const glowColor = isLeft ? "rgba(34, 197, 94, 0.3)" : "rgba(239, 68, 68, 0.3)";
 
   return (
     <div
-      className="flex-1 p-6 rounded-xl border border-[var(--border-default)] bg-[var(--bg-secondary)]"
-      style={{ borderTopColor: sideColor, borderTopWidth: "2px" }}
+      className="flex-1 p-6 rounded-xl border bg-[var(--bg-secondary)] transition-all hover:border-opacity-80"
+      style={{
+        borderColor: sideColor,
+        borderTopWidth: "3px",
+        boxShadow: `0 0 20px ${glowColor}`,
+      }}
     >
       <input
         type="text"
@@ -58,12 +64,12 @@ function TeamPanel({
         {team.members.map((member) => (
           <div
             key={member.id}
-            className="flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)]"
+            className="flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] group hover:border-[var(--border-default)] transition-colors"
           >
             <span className="text-sm text-[var(--text-primary)]">{member.name}</span>
             <button
               onClick={() => removeMember(member.id)}
-              className="text-[var(--text-muted)] hover:text-[var(--flash-miss)] transition-colors text-sm"
+              className="text-[var(--text-muted)] hover:text-[var(--flash-miss)] transition-colors text-sm opacity-50 group-hover:opacity-100 cursor-pointer"
               aria-label="Remove member"
             >
               &times;
@@ -84,7 +90,7 @@ function TeamPanel({
         <button
           onClick={addMember}
           disabled={!newMemberName.trim()}
-          className="btn-secondary min-h-[40px] px-4"
+          className="btn-secondary min-h-[40px] px-4 cursor-pointer"
         >
           Add
         </button>
@@ -104,11 +110,16 @@ function PlayerNameInput({
   onChange: (name: string) => void;
 }) {
   const color = side === "left" ? "var(--hp-full)" : "var(--hp-low)";
+  const glowColor = side === "left" ? "rgba(34, 197, 94, 0.3)" : "rgba(239, 68, 68, 0.3)";
 
   return (
     <div
-      className="flex-1 p-5 rounded-xl border border-[var(--border-default)] bg-[var(--bg-secondary)]"
-      style={{ borderTopColor: color, borderTopWidth: "2px" }}
+      className="flex-1 p-5 rounded-xl border bg-[var(--bg-secondary)] transition-all"
+      style={{
+        borderColor: color,
+        borderTopWidth: "3px",
+        boxShadow: `0 0 20px ${glowColor}`,
+      }}
     >
       <input
         type="text"
@@ -156,19 +167,19 @@ export function TeamSetup() {
         <div className="flex justify-end">
           <button
             onClick={() => setExpanded(true)}
-            className="btn-muted text-xs"
+            className="btn-muted text-xs cursor-pointer"
           >
             Switch to Teams →
           </button>
         </div>
-        <div className="flex gap-4 items-stretch">
+        <div className="flex flex-col md:flex-row gap-4 items-stretch">
           <PlayerNameInput
             player={p1}
             side="left"
             onChange={(name) => updatePlayerName(0, name)}
           />
-          <div className="flex items-center">
-            <span className="text-2xl font-black text-[var(--text-muted)]">VS</span>
+          <div className="flex items-center justify-center py-2 md:py-0">
+            <span className="font-retro text-3xl text-[var(--accent)] neon-glow-sm glitch-hover">VS</span>
           </div>
           <PlayerNameInput
             player={p2}
@@ -186,16 +197,16 @@ export function TeamSetup() {
         {expanded && teams[0].members.length <= 1 && teams[1].members.length <= 1 && (
           <button
             onClick={() => setExpanded(false)}
-            className="btn-muted text-xs"
+            className="btn-muted text-xs cursor-pointer"
           >
             ← Switch to 1v1
           </button>
         )}
       </div>
-      <div className="flex gap-4 items-stretch">
+      <div className="flex flex-col md:flex-row gap-4 items-stretch">
         <TeamPanel team={teams[0]} teamIndex={0} onUpdate={updateTeam(0)} />
-        <div className="flex items-center">
-          <span className="text-2xl font-black text-[var(--text-muted)]">VS</span>
+        <div className="flex items-center justify-center py-2 md:py-0">
+          <span className="font-retro text-3xl text-[var(--accent)] neon-glow-sm glitch-hover">VS</span>
         </div>
         <TeamPanel team={teams[1]} teamIndex={1} onUpdate={updateTeam(1)} />
       </div>

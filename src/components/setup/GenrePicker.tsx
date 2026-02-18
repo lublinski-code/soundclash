@@ -30,10 +30,10 @@ export function GenrePicker() {
             <button
               key={genre.id}
               onClick={() => toggleGenre(genre.id)}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-all cursor-pointer ${
                 selected
-                  ? "bg-[var(--accent)] text-white border border-[var(--accent)]"
-                  : "bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-default)] hover:border-[var(--accent)] hover:text-[var(--text-primary)]"
+                  ? "bg-transparent text-[var(--accent)] border-2 border-[var(--accent)] shadow-[0_0_15px_var(--accent-dim)]"
+                  : "bg-transparent text-[var(--text-secondary)] border border-[var(--border-default)] hover:border-[var(--accent)] hover:text-[var(--accent)] hover:shadow-[0_0_10px_var(--accent-dim)]"
               }`}
             >
               {genre.label}
@@ -42,7 +42,7 @@ export function GenrePicker() {
         })}
       </div>
       {selectedGenres.length === 0 && (
-        <p className="text-xs text-[var(--text-muted)]">
+        <p className="text-xs text-[var(--flash-miss)]">
           Select at least one genre
         </p>
       )}

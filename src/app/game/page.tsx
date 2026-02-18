@@ -219,22 +219,24 @@ export default function GamePage() {
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen">
+    <div className="flex-1 flex flex-col">
       {/* HP HUD — always visible during game (except KO) */}
       {phase !== "KO" && <HpHud />}
 
       {/* Spotify warning + New Game button */}
       {phase !== "KO" && (
-        <div className="flex items-center justify-between px-4 py-2 bg-[var(--bg-secondary)] border-b border-[var(--border-subtle)]">
-          <p className="text-[11px] text-[var(--text-muted)] flex-1">
-            ⚠ Don&apos;t check your Spotify app — the song is visible there!
-          </p>
-          <button
-            onClick={handleNewGame}
-            className="btn-muted text-xs py-1 px-3"
-          >
-            ✕ End Game
-          </button>
+        <div className="bg-[var(--bg-secondary)] border-b border-[var(--border-subtle)]">
+          <div className="max-w-4xl mx-auto flex items-center justify-between px-6 py-2">
+            <p className="text-[11px] text-[var(--text-muted)] flex-1">
+              ⚠ Don&apos;t check your Spotify app — the song is visible there!
+            </p>
+            <button
+              onClick={handleNewGame}
+              className="btn-muted text-xs py-1 px-3"
+            >
+              ✕ End Game
+            </button>
+          </div>
         </div>
       )}
 
@@ -243,43 +245,45 @@ export default function GamePage() {
 
       {/* Snippet + Guess Phase */}
       {(phase === "SNIPPET" || phase === "GUESS") && (
-        <div className="flex-1 flex flex-col items-center justify-center px-4 py-8 gap-8">
-          {/* Active player indicator */}
-          <div className="text-center">
-            {teams[0].members.length === 1 && teams[1].members.length === 1 ? (
-              <p className="text-lg font-bold text-[var(--text-primary)]">
-                {teams[currentTeamIndex].members[0]?.name}&apos;s turn
-              </p>
-            ) : (
-              <>
-                <p className="text-xs uppercase tracking-widest text-[var(--text-muted)]">
-                  {teams[currentTeamIndex].name}&apos;s turn
-                </p>
+        <div className="flex-1 flex flex-col items-center justify-center px-6 py-10 gap-10">
+          <div className="w-full max-w-2xl mx-auto flex flex-col items-center gap-10">
+            {/* Active player indicator */}
+            <div className="text-center">
+              {teams[0].members.length === 1 && teams[1].members.length === 1 ? (
                 <p className="text-lg font-bold text-[var(--text-primary)]">
-                  {teams[currentTeamIndex].members[teams[currentTeamIndex].activeIndex]?.name}
+                  {teams[currentTeamIndex].members[0]?.name}&apos;s turn
                 </p>
-              </>
+              ) : (
+                <>
+                  <p className="text-xs uppercase tracking-widest text-[var(--text-muted)]">
+                    {teams[currentTeamIndex].name}&apos;s turn
+                  </p>
+                  <p className="text-lg font-bold text-[var(--text-primary)]">
+                    {teams[currentTeamIndex].members[teams[currentTeamIndex].activeIndex]?.name}
+                  </p>
+                </>
+              )}
+            </div>
+
+            <SnippetPlayer
+              isPlaying={isPlaying}
+              onPlay={handlePlaySnippet}
+              onSnippetEnd={() => setIsPlaying(false)}
+            />
+
+            {/* Show guess input after snippet has played at least once */}
+            {snippetPlayed && !isPlaying && (
+              <div className="fade-in w-full">
+                <GuessInput
+                  onGuess={handleGuess}
+                  onSkip={handleSkip}
+                  onGiveUp={handleGiveUp}
+                  onReplay={handleReplay}
+                  disabled={isPlaying}
+                />
+              </div>
             )}
           </div>
-
-          <SnippetPlayer
-            isPlaying={isPlaying}
-            onPlay={handlePlaySnippet}
-            onSnippetEnd={() => setIsPlaying(false)}
-          />
-
-          {/* Show guess input after snippet has played at least once */}
-          {snippetPlayed && !isPlaying && (
-            <div className="fade-in w-full">
-              <GuessInput
-                onGuess={handleGuess}
-                onSkip={handleSkip}
-                onGiveUp={handleGiveUp}
-                onReplay={handleReplay}
-                disabled={isPlaying}
-              />
-            </div>
-          )}
         </div>
       )}
 
@@ -288,7 +292,6 @@ export default function GamePage() {
         <div className="flex-1">
           <DamageOverlay
             damage={lastResult.damage}
-            correct={lastResult.correct}
             onComplete={handleDamageComplete}
           />
         </div>

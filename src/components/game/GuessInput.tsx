@@ -68,7 +68,7 @@ export function GuessInput({ onGuess, onSkip, onGiveUp, onReplay, disabled }: Gu
 
   return (
     <div className="w-full max-w-xl mx-auto space-y-4">
-      {/* Search Input */}
+      {/* Search Input - glassmorphism style */}
       <div className="relative">
         <input
           ref={inputRef}
@@ -77,7 +77,7 @@ export function GuessInput({ onGuess, onSkip, onGiveUp, onReplay, disabled }: Gu
           onChange={(e) => setQuery(e.target.value)}
           disabled={disabled}
           placeholder="Start typing a song name..."
-          className="input w-full text-base"
+          className="input-glass w-full text-base pr-12"
           autoComplete="off"
         />
         {searching && (
@@ -88,18 +88,25 @@ export function GuessInput({ onGuess, onSkip, onGiveUp, onReplay, disabled }: Gu
 
         {/* Autocomplete Dropdown */}
         {showResults && results.length > 0 && (
-          <div className="absolute z-50 w-full mt-2 rounded-[var(--radius-lg)] bg-[var(--bg-elevated)] border border-[var(--border-default)] shadow-2xl overflow-hidden">
+          <div className="absolute z-50 w-full mt-2 rounded-[var(--radius-lg)] glass overflow-hidden"
+            style={{
+              boxShadow: "0 8px 32px rgba(0,0,0,0.4), 0 0 20px var(--accent-dim)",
+            }}
+          >
             {results.map((track) => (
               <button
                 key={track.id}
                 onClick={() => handleSelect(track)}
-                className="w-full flex items-center gap-4 px-4 py-3 hover:bg-[var(--bg-surface)] transition-colors text-left"
+                className="w-full flex items-center gap-4 px-4 py-3 hover:bg-[var(--accent)]/10 transition-colors text-left cursor-pointer border-b border-[var(--border-subtle)] last:border-0"
               >
                 {track.album.images[2] && (
                   <img
                     src={track.album.images[2].url}
                     alt=""
                     className="w-12 h-12 rounded-[var(--radius-sm)] object-cover flex-shrink-0"
+                    style={{
+                      boxShadow: "0 0 10px rgba(0,0,0,0.3)",
+                    }}
                   />
                 )}
                 <div className="min-w-0 flex-1">
@@ -122,7 +129,7 @@ export function GuessInput({ onGuess, onSkip, onGiveUp, onReplay, disabled }: Gu
         <button
           onClick={onReplay}
           disabled={disabled}
-          className="btn-secondary"
+          className="btn-secondary cursor-pointer"
           title="Replay snippet"
         >
           <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
@@ -136,17 +143,17 @@ export function GuessInput({ onGuess, onSkip, onGiveUp, onReplay, disabled }: Gu
           <button
             onClick={onSkip}
             disabled={disabled}
-            className="btn-secondary"
+            className="btn-secondary cursor-pointer"
           >
             Skip (hear more)
           </button>
         )}
 
-        {/* Give Up -- always visible */}
+        {/* Give Up */}
         <button
           onClick={onGiveUp}
           disabled={disabled}
-          className="btn-danger"
+          className="btn-danger cursor-pointer"
         >
           Give up
         </button>

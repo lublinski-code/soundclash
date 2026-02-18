@@ -1,9 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "@/store/gameStore";
 import { createPlaylist } from "@/lib/spotify/api";
+
+// Generate celebration particles
+function generateStars(count: number) {
+  return Array.from({ length: count }, (_, i) => ({
+    id: i,
+    left: Math.random() * 100,
+    top: Math.random() * 100,
+    delay: Math.random() * 2,
+    duration: 1 + Math.random() * 2,
+    size: 2 + Math.random() * 4,
+  }));
+}
 
 export function KoScreen() {
   const router = useRouter();
@@ -13,6 +25,7 @@ export function KoScreen() {
   const [playlistUrl, setPlaylistUrl] = useState<string | null>(null);
 
   const loser = teams.find((t) => t.id !== winner?.id);
+  const stars = useMemo(() => generateStars(30), []);
 
   useEffect(() => {
     const timer = setTimeout(() => setShowDetails(true), 1500);
@@ -36,15 +49,38 @@ export function KoScreen() {
     .slice(0, 8);
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[var(--bg-primary)] overflow-auto py-8">
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[var(--bg-primary)] overflow-auto px-6 py-10">
+      {/* Celebration stars */}
+      {stars.map((star) => (
+        <div
+          key={star.id}
+          className="absolute rounded-full bg-[var(--neon-yellow)] opacity-0"
+          style={{
+            left: `${star.left}%`,
+            top: `${star.top}%`,
+            width: `${star.size}px`,
+            height: `${star.size}px`,
+            animation: `twinkle ${star.duration}s ease-in-out ${star.delay}s infinite`,
+            boxShadow: "0 0 6px var(--neon-yellow)",
+          }}
+        />
+      ))}
+
+      {/* Radial glow */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: "radial-gradient(circle at center, rgba(239, 68, 68, 0.2) 0%, transparent 50%)",
+        }}
+      />
+
       {/* KO Text */}
-      <div className="text-center mb-8">
+      <div className="text-center mb-8 relative z-10">
         <div className="ko-slam">
           <h1
-            className="text-8xl md:text-[10rem] font-black tracking-tighter"
+            className="font-retro text-[8rem] md:text-[12rem] tracking-wider neon-glow"
             style={{
               color: "var(--flash-miss)",
-              textShadow: "0 0 60px var(--flash-miss), 0 0 120px var(--flash-miss)",
             }}
           >
             K.O.
@@ -52,7 +88,7 @@ export function KoScreen() {
         </div>
 
         <div className={`transition-all duration-700 delay-700 ${showDetails ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
-          <p className="text-xl text-[var(--text-muted)] mt-2">
+          <p className="font-retro text-2xl text-[var(--text-muted)] mt-2 tracking-wider">
             {loser?.name ?? "Team"} has been defeated!
           </p>
         </div>
@@ -60,15 +96,28 @@ export function KoScreen() {
 
       {/* Winner */}
       {showDetails && winner && (
-        <div className="text-center space-y-6 fade-in max-w-2xl mx-auto px-4">
-          <div className="space-y-2">
-            <p className="text-sm uppercase tracking-widest text-[var(--flash-perfect)]">
-              Winner
+        <div className="text-center space-y-6 fade-in max-w-2xl mx-auto px-4 relative z-10">
+          {/* Winner Banner */}
+          <div
+            className="inline-block px-8 py-3 rounded-lg"
+            style={{
+              background: "linear-gradient(135deg, var(--flash-perfect), var(--neon-yellow))",
+              boxShadow: "0 0 30px rgba(251, 191, 36, 0.5)",
+            }}
+          >
+            <p className="font-retro text-xl text-black uppercase tracking-[0.3em]">
+              WINNER
             </p>
-            <h2 className="text-4xl md:text-6xl font-black text-[var(--text-primary)]">
+          </div>
+
+          <div className="space-y-2">
+            <h2
+              className="font-retro text-5xl md:text-7xl text-[var(--text-primary)] tracking-wider neon-glow-sm"
+              style={{ color: "var(--flash-perfect)" }}
+            >
               {winner.name}
             </h2>
-            <p className="text-lg text-[var(--text-secondary)]">
+            <p className="font-retro text-xl text-[var(--hp-full)]">
               {winner.hp} HP remaining
             </p>
           </div>
@@ -85,9 +134,10 @@ export function KoScreen() {
                     key={i}
                     src={art}
                     alt=""
-                    className="w-16 h-16 rounded object-cover opacity-80 hover:opacity-100 transition-opacity"
+                    className="w-16 h-16 rounded object-cover transition-all hover:scale-110 hover:shadow-[0_0_15px_var(--accent-glow)]"
                     style={{
-                      animationDelay: `${i * 100}ms`,
+                      opacity: 0,
+                      animation: `fadeIn 0.3s ease-out ${i * 100}ms forwards`,
                     }}
                   />
                 ))}
@@ -101,14 +151,14 @@ export function KoScreen() {
               Battle Summary
             </p>
             <div className="grid grid-cols-2 gap-4 text-center">
-              <div className="p-4 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-default)]">
-                <div className="text-2xl font-black text-[var(--text-primary)]">
+              <div className="card-glow p-4">
+                <div className="font-retro text-4xl text-[var(--text-primary)]">
                   {roundResults.length}
                 </div>
                 <div className="text-xs text-[var(--text-muted)]">Total Rounds</div>
               </div>
-              <div className="p-4 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-default)]">
-                <div className="text-2xl font-black text-[var(--flash-perfect)]">
+              <div className="card-glow p-4">
+                <div className="font-retro text-4xl text-[var(--flash-perfect)] neon-glow-sm">
                   {roundResults.filter((r) => r.damage === 0).length}
                 </div>
                 <div className="text-xs text-[var(--text-muted)]">Perfects</div>
@@ -122,7 +172,7 @@ export function KoScreen() {
                 return (
                   <div
                     key={i}
-                    className="flex items-center justify-between px-3 py-2 rounded text-xs bg-[var(--bg-surface)] border border-[var(--border-subtle)]"
+                    className="flex items-center justify-between px-3 py-2 rounded text-xs bg-[var(--bg-surface)] border border-[var(--border-subtle)] hover:border-[var(--border-default)] transition-colors"
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       {result.albumArt && (
@@ -143,6 +193,7 @@ export function KoScreen() {
                               : result.correct
                               ? "var(--flash-hit)"
                               : "var(--flash-miss)",
+                          textShadow: result.damage === 0 ? "0 0 8px var(--flash-perfect)" : "none",
                         }}
                       >
                         {result.damage === 0 ? "PERFECT" : result.correct ? `-${result.damage}` : "MISS"}
@@ -189,9 +240,9 @@ export function KoScreen() {
                     setPlaylistState("error");
                   }
                 }}
-                className="btn-secondary"
+                className="btn-secondary cursor-pointer"
               >
-                💾 Save as Spotify Playlist
+                Save as Spotify Playlist
               </button>
             )}
             {playlistState === "saving" && (
@@ -201,8 +252,8 @@ export function KoScreen() {
               </div>
             )}
             {playlistState === "saved" && (
-              <div className="text-sm text-[var(--hp-full)]">
-                ✓ Playlist saved!{" "}
+              <div className="text-sm text-[var(--hp-full)] neon-glow-sm">
+                Playlist saved!{" "}
                 {playlistUrl && (
                   <a
                     href={playlistUrl}
@@ -226,13 +277,13 @@ export function KoScreen() {
           <div className="flex gap-4 justify-center pt-6">
             <button
               onClick={handlePlayAgain}
-              className="btn-primary px-10 text-lg font-black"
+              className="btn-arcade cursor-pointer"
             >
               REMATCH
             </button>
             <button
               onClick={handleBackToHome}
-              className="btn-secondary"
+              className="btn-secondary cursor-pointer"
             >
               Back to Lobby
             </button>

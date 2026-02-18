@@ -1,42 +1,46 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { getDamageLabel } from "@/lib/game/damage";
 
 type DamageOverlayProps = {
   damage: number;
-  correct: boolean;
   onComplete: () => void;
 };
 
-// Generate random confetti particles
+// Generate random confetti particles with neon colors
 function generateConfetti(count: number) {
+  const neonColors = [
+    "#a855f7", // accent purple
+    "#22d3ee", // neon cyan
+    "#f472b6", // neon pink
+    "#fde047", // neon yellow
+    "#4ade80", // neon green
+    "#ffffff", // white
+  ];
   return Array.from({ length: count }, (_, i) => ({
     id: i,
     left: Math.random() * 100,
     delay: Math.random() * 0.5,
     duration: 1 + Math.random() * 1,
-    color: ["#ffd700", "#00ff88", "#ff6b6b", "#4fc3f7", "#ba68c8", "#fff"][
-      Math.floor(Math.random() * 6)
-    ],
+    color: neonColors[Math.floor(Math.random() * neonColors.length)],
     size: 6 + Math.random() * 8,
     rotation: Math.random() * 360,
+    isCircle: Math.random() > 0.5,
   }));
 }
 
-export function DamageOverlay({ damage, correct, onComplete }: DamageOverlayProps) {
-  const [show, setShow] = useState(false);
+export function DamageOverlay({ damage, onComplete }: DamageOverlayProps) {
   const label = getDamageLabel(damage);
   const isCorrect = label === "PERFECT" || label === "HIT";
 
   // Generate confetti only for correct guesses
   const confetti = useMemo(
-    () => (isCorrect ? generateConfetti(label === "PERFECT" ? 40 : 25) : []),
+    () => (isCorrect ? generateConfetti(label === "PERFECT" ? 50 : 30) : []),
     [isCorrect, label]
   );
 
   useEffect(() => {
-    setShow(true);
     const timer = setTimeout(() => onComplete(), 1800);
     return () => clearTimeout(timer);
   }, [onComplete]);
@@ -74,10 +78,11 @@ export function DamageOverlay({ damage, correct, onComplete }: DamageOverlayProp
                 width: `${c.size}px`,
                 height: `${c.size}px`,
                 backgroundColor: c.color,
-                borderRadius: Math.random() > 0.5 ? "50%" : "2px",
+                borderRadius: c.isCircle ? "50%" : "2px",
                 animationDelay: `${c.delay}s`,
                 animationDuration: `${c.duration}s`,
                 transform: `rotate(${c.rotation}deg)`,
+                boxShadow: `0 0 6px ${c.color}`,
               }}
             />
           ))}
@@ -87,36 +92,31 @@ export function DamageOverlay({ damage, correct, onComplete }: DamageOverlayProp
       {/* Centered result */}
       <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
         <div
-          className={`text-center transition-all duration-500 ${
-            show ? "opacity-100 scale-100" : "opacity-0 scale-50"
-          } ${isCorrect ? "celebration-bounce" : ""}`}
+          className={`text-center fade-in ${isCorrect ? "celebration-bounce" : ""}`}
         >
           {/* Glow burst for correct answers */}
           {isCorrect && (
             <div
               className="absolute inset-0 rounded-full celebration-burst"
               style={{
-                background: `radial-gradient(circle, ${textColor}40 0%, transparent 70%)`,
+                background: `radial-gradient(circle, ${textColor}60 0%, transparent 70%)`,
               }}
             />
           )}
 
           <div
-            className="text-6xl md:text-8xl font-black tracking-tighter relative"
+            className="font-retro text-7xl md:text-9xl tracking-wider relative neon-glow"
             style={{
               color: textColor,
-              textShadow: `0 0 40px ${textColor}`,
             }}
           >
-            {label === "PERFECT" && "🎉 "}
             {label}
-            {label === "PERFECT" && " 🎉"}
           </div>
 
           {damage > 0 && (
             <div className="damage-float mt-4">
               <span
-                className="text-3xl font-black"
+                className="font-retro text-4xl neon-glow-sm"
                 style={{ color: textColor }}
               >
                 -{damage} HP
@@ -125,14 +125,14 @@ export function DamageOverlay({ damage, correct, onComplete }: DamageOverlayProp
           )}
 
           {label === "PERFECT" && (
-            <div className="mt-2 text-lg text-[var(--flash-perfect)] font-bold">
-              ✨ No damage! ✨
+            <div className="mt-3 font-retro text-2xl text-[var(--flash-perfect)] neon-glow-sm tracking-wider">
+              NO DAMAGE!
             </div>
           )}
 
           {label === "HIT" && (
-            <div className="mt-2 text-lg text-[var(--flash-hit)] font-bold">
-              Nice guess!
+            <div className="mt-3 font-retro text-xl text-[var(--flash-hit)] neon-glow-sm tracking-wider">
+              NICE GUESS!
             </div>
           )}
         </div>

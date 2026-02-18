@@ -15,10 +15,10 @@ export function HpHud() {
   const is1v1 = team1.members.length === 1 && team2.members.length === 1;
 
   return (
-    <div className="w-full px-4 py-3 bg-[var(--bg-secondary)] border-b border-[var(--border-default)]">
-      <div className="max-w-5xl mx-auto">
-        <div className="text-center mb-2">
-          <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">
+    <div className="w-full px-6 py-5 bg-[var(--bg-secondary)] border-b border-[var(--border-default)]">
+      <div className="max-w-4xl mx-auto">
+        <div className="text-center mb-3">
+          <span className="font-retro text-lg text-[var(--accent)] uppercase tracking-[0.3em] neon-glow-sm">
             Round {roundNumber}
           </span>
         </div>
@@ -33,7 +33,7 @@ export function HpHud() {
             isActive={currentTeamIndex === 0}
           />
 
-          <div className="text-lg font-black text-[var(--text-muted)] px-2 shrink-0">
+          <div className="font-retro text-2xl text-[var(--accent)] px-3 shrink-0 neon-glow-sm">
             VS
           </div>
 

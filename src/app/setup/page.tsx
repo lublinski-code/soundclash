@@ -133,91 +133,113 @@ export default function SetupPage() {
   if (!isPlayerReady && !initializingPlayer) validationMessages.push("Spotify player not ready — go back and reconnect");
 
   return (
-    <main className="flex-1 px-4 py-8 max-w-4xl mx-auto w-full space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-black text-[var(--text-primary)] tracking-tight">
-            BATTLE SETUP
-          </h1>
-          <p className="text-sm text-[var(--text-muted)] mt-1">
-            Configure your match and hit start
-          </p>
-        </div>
-        <button
-          onClick={() => router.push("/")}
-          className="btn-muted"
-        >
-          ← Back
-        </button>
-      </div>
-
-      {/* Player status */}
-      {initializingPlayer && (
-        <div className="card flex items-center gap-3">
-          <div className="w-4 h-4 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
-          <span className="text-sm text-[var(--text-muted)]">Initializing Spotify player...</span>
-        </div>
-      )}
-
-      {isPlayerReady && (
-        <div className="card flex items-center gap-2" style={{ borderColor: 'var(--hp-full)', borderWidth: '1px' }}>
-          <span className="text-[var(--hp-full)]">✓</span>
-          <span className="text-sm text-[var(--text-secondary)]">Spotify player ready</span>
-        </div>
-      )}
-
-      {/* Teams Card */}
-      <div className="card space-y-4">
-        <h2 className="text-sm font-bold text-[var(--text-muted)] uppercase tracking-wider">
-          Players
-        </h2>
-        <TeamSetup />
-      </div>
-
-      {/* Music Selection Card */}
-      <div className="card space-y-6">
-        <h2 className="text-sm font-bold text-[var(--text-muted)] uppercase tracking-wider">
-          Music Selection
-        </h2>
-        <GenrePicker />
-        <div className="h-px bg-[var(--border-subtle)]" />
-        <CountryPicker />
-      </div>
-
-      {/* Game Config Card */}
-      <div className="card">
-        <GameConfigPanel />
-      </div>
-
-      {/* Start Button */}
-      <div className="flex flex-col items-center gap-4 pt-4 pb-8">
-        {validationMessages.length > 0 && (
-          <div className="text-xs text-[var(--text-muted)] space-y-1 text-center">
-            {validationMessages.map((msg, i) => (
-              <p key={i}>• {msg}</p>
-            ))}
+    <main className="flex-1 flex flex-col">
+      {/* Container with max-width and center alignment */}
+      <div className="flex-1 w-full max-w-4xl mx-auto px-6 md:px-8 py-8 md:py-12">
+        {/* Header */}
+        <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-10">
+          <div>
+            <h1 className="font-retro text-5xl md:text-6xl text-[var(--text-primary)] tracking-wider neon-glow-sm">
+              BATTLE <span className="text-[var(--accent)]">SETUP</span>
+            </h1>
+            <div className="pixel-divider w-32 mt-3" />
+            <p className="text-sm text-[var(--text-muted)] mt-4">
+              Configure your match and hit start
+            </p>
           </div>
-        )}
+          <button
+            onClick={() => router.push("/")}
+            className="btn-muted cursor-pointer self-start md:self-auto"
+          >
+            ← Back
+          </button>
+        </header>
 
-        {error && (
-          <p className="text-sm text-[var(--flash-miss)] max-w-md text-center">{error}</p>
-        )}
-
-        <button
-          onClick={handleStartBattle}
-          disabled={!canStart || loading}
-          className="btn-primary px-16 py-4 text-lg font-black uppercase tracking-wider hover:scale-105 active:scale-95 disabled:hover:scale-100"
-        >
-          {loading ? (
-            <span className="flex items-center gap-3">
-              <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Loading Songs...
-            </span>
-          ) : (
-            "START BATTLE"
+        {/* Content sections */}
+        <div className="space-y-8">
+          {/* Player status */}
+          {initializingPlayer && (
+            <div className="card-glow flex items-center gap-3 p-5">
+              <div className="w-4 h-4 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm text-[var(--text-muted)]">Initializing Spotify player...</span>
+            </div>
           )}
-        </button>
+
+          {isPlayerReady && (
+            <div
+              className="card flex items-center gap-3 p-5"
+              style={{ borderColor: 'var(--hp-full)', borderWidth: '1px', boxShadow: '0 0 20px rgba(34, 197, 94, 0.15)' }}
+            >
+              <span className="text-[var(--hp-full)] text-xl">✓</span>
+              <span className="text-sm text-[var(--text-secondary)]">Spotify player ready</span>
+            </div>
+          )}
+
+          {/* Teams Card */}
+          <section className="card p-6 md:p-8 space-y-6">
+            <div className="flex items-center gap-3">
+              <span className="text-[var(--neon-cyan)] text-2xl">👥</span>
+              <h2 className="text-sm font-bold text-[var(--text-muted)] uppercase tracking-wider">
+                Players
+              </h2>
+            </div>
+            <TeamSetup />
+          </section>
+
+          {/* Music Selection Card */}
+          <section className="card p-6 md:p-8 space-y-8">
+            <div className="flex items-center gap-3">
+              <span className="text-[var(--neon-pink)] text-2xl">🎵</span>
+              <h2 className="text-sm font-bold text-[var(--text-muted)] uppercase tracking-wider">
+                Music Selection
+              </h2>
+            </div>
+            <GenrePicker />
+            <div className="pixel-divider opacity-30" />
+            <CountryPicker />
+          </section>
+
+          {/* Game Config Card */}
+          <section className="card p-6 md:p-8">
+            <div className="flex items-center gap-3 mb-6">
+              <span className="text-[var(--neon-yellow)] text-2xl">⚙️</span>
+              <h2 className="text-sm font-bold text-[var(--text-muted)] uppercase tracking-wider">
+                Battle Settings
+              </h2>
+            </div>
+            <GameConfigPanel />
+          </section>
+        </div>
+
+        {/* Start Button Section */}
+        <div className="flex flex-col items-center gap-5 pt-12 pb-8">
+          {validationMessages.length > 0 && (
+            <div className="text-xs text-[var(--text-muted)] space-y-1.5 text-center">
+              {validationMessages.map((msg, i) => (
+                <p key={i}>• {msg}</p>
+              ))}
+            </div>
+          )}
+
+          {error && (
+            <p className="text-sm text-[var(--flash-miss)] neon-glow-sm max-w-md text-center">{error}</p>
+          )}
+
+          <button
+            onClick={handleStartBattle}
+            disabled={!canStart || loading}
+            className="btn-arcade disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+          >
+            {loading ? (
+              <span className="flex items-center gap-3">
+                <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Loading Songs...
+              </span>
+            ) : (
+              "START BATTLE"
+            )}
+          </button>
+        </div>
       </div>
     </main>
   );
