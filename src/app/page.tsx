@@ -112,43 +112,45 @@ export default function LandingPage() {
       <div className="absolute bottom-1/4 -right-32 w-96 h-96 rounded-full bg-[var(--cta)] opacity-[0.07] blur-[120px] pointer-events-none" />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-[var(--accent)] opacity-[0.03] blur-[150px] pointer-events-none" />
 
-      {/* Main content - centered */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-16 md:py-24">
-        <div className="w-full max-w-2xl mx-auto flex flex-col items-center gap-12 md:gap-16">
-          <HeroSection />
+      {/* Main content - centered horizontally and vertically */}
+      <div className="flex-1 flex items-center justify-center px-6 py-12 md:py-16">
+        <div className="w-full max-w-xl mx-auto text-center">
+          <div className="flex flex-col items-center gap-10 md:gap-12">
+            <HeroSection />
 
-          {loading ? (
-            <div className="flex items-center gap-3 text-[var(--text-muted)]">
-              <div className="w-5 h-5 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
-              <span className="text-sm">Checking connection...</span>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center gap-8">
-              <SpotifyConnect />
+            {loading ? (
+              <div className="flex items-center justify-center gap-3 text-[var(--text-muted)]">
+                <div className="w-5 h-5 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm">Checking connection...</span>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-8">
+                <SpotifyConnect />
 
-              {userName && isPlayerReady && (
-                <button
-                  onClick={handleStartGame}
-                  className="btn-arcade fade-in mt-4"
-                >
-                  START GAME
-                </button>
-              )}
+                {userName && isPlayerReady && (
+                  <button
+                    onClick={handleStartGame}
+                    className="btn-arcade fade-in mt-4"
+                  >
+                    START GAME
+                  </button>
+                )}
 
-              {userName && !isPlayerReady && (
-                <div className="flex items-center gap-3 text-[var(--text-muted)]">
-                  <div className="w-5 h-5 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
-                  <span className="text-sm">Initializing player...</span>
-                </div>
-              )}
-            </div>
-          )}
+                {userName && !isPlayerReady && (
+                  <div className="flex items-center justify-center gap-3 text-[var(--text-muted)]">
+                    <div className="w-5 h-5 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
+                    <span className="text-sm">Initializing player...</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Footer */}
       <footer className="relative z-10 py-6 text-center">
-        <div className="max-w-2xl mx-auto px-6 space-y-2">
+        <div className="max-w-xl mx-auto px-6 space-y-2">
           <p className="text-xs text-[var(--text-muted)]">
             Powered by Spotify. Premium account required.
           </p>

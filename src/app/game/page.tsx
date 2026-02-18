@@ -226,7 +226,7 @@ export default function GamePage() {
       {/* Spotify warning + New Game button */}
       {phase !== "KO" && (
         <div className="bg-[var(--bg-secondary)] border-b border-[var(--border-subtle)]">
-          <div className="max-w-4xl mx-auto flex items-center justify-between px-6 py-2">
+          <div className="max-w-3xl mx-auto flex items-center justify-between px-6 py-2">
             <p className="text-[11px] text-[var(--text-muted)] flex-1">
               ⚠ Don&apos;t check your Spotify app — the song is visible there!
             </p>

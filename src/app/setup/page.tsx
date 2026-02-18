@@ -135,24 +135,25 @@ export default function SetupPage() {
   return (
     <main className="flex-1 flex flex-col">
       {/* Container with max-width and center alignment */}
-      <div className="flex-1 w-full max-w-4xl mx-auto px-6 md:px-8 py-8 md:py-12">
+      <div className="flex-1 w-full max-w-3xl mx-auto px-6 md:px-8 py-8 md:py-12">
         {/* Header */}
-        <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-10">
-          <div>
-            <h1 className="font-retro text-5xl md:text-6xl text-[var(--text-primary)] tracking-wider neon-glow-sm">
-              BATTLE <span className="text-[var(--accent)]">SETUP</span>
-            </h1>
-            <div className="pixel-divider w-32 mt-3" />
-            <p className="text-sm text-[var(--text-muted)] mt-4">
-              Configure your match and hit start
-            </p>
+        <header className="text-center mb-10">
+          <div className="flex justify-between items-start mb-6">
+            <button
+              onClick={() => router.push("/")}
+              className="btn-muted cursor-pointer text-sm"
+            >
+              ← Back
+            </button>
+            <div className="w-16" /> {/* Spacer for balance */}
           </div>
-          <button
-            onClick={() => router.push("/")}
-            className="btn-muted cursor-pointer self-start md:self-auto"
-          >
-            ← Back
-          </button>
+          <h1 className="font-retro text-5xl md:text-6xl text-[var(--text-primary)] tracking-wider neon-glow-sm">
+            BATTLE <span className="text-[var(--accent)]">SETUP</span>
+          </h1>
+          <div className="pixel-divider w-32 mt-4 mx-auto" />
+          <p className="text-sm text-[var(--text-muted)] mt-4">
+            Configure your match and hit start
+          </p>
         </header>
 
         {/* Content sections */}

@@ -16,7 +16,7 @@ export function HpHud() {
 
   return (
     <div className="w-full px-6 py-5 bg-[var(--bg-secondary)] border-b border-[var(--border-default)]">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-3xl mx-auto">
         <div className="text-center mb-3">
           <span className="font-retro text-lg text-[var(--accent)] uppercase tracking-[0.3em] neon-glow-sm">
             Round {roundNumber}
