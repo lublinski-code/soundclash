@@ -1,25 +1,33 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, VT323 } from "next/font/google";
+import { Space_Grotesk } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-body",
   subsets: ["latin"],
+  weight: ["400", "500"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-const vt323 = VT323({
-  variable: "--font-vt323",
-  subsets: ["latin"],
-  weight: "400",
+const underfind = localFont({
+  src: [
+    {
+      path: "../../public/fonts/undefined-medium.woff2",
+      weight: "500",
+      style: "normal",
+    },
+    {
+      path: "../../public/fonts/undefined-medium.woff",
+      weight: "500",
+      style: "normal",
+    },
+  ],
+  variable: "--font-display",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "SoundClash — Music Guessing Battle",
+  title: "SoundClash — The Ultimate Music Battle",
   description:
     "A fighting-game-themed music guessing game. Two teams face off, guessing songs from progressive audio snippets. Last team standing wins.",
   icons: {
@@ -35,7 +43,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${vt323.variable} antialiased`}
+        className={`${spaceGrotesk.variable} ${underfind.variable} antialiased`}
       >
         <div className="relative z-10 min-h-screen min-h-dvh flex flex-col">
           {children}

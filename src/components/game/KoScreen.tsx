@@ -1,21 +1,9 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "@/store/gameStore";
 import { createPlaylist } from "@/lib/spotify/api";
-
-// Generate celebration particles
-function generateStars(count: number) {
-  return Array.from({ length: count }, (_, i) => ({
-    id: i,
-    left: Math.random() * 100,
-    top: Math.random() * 100,
-    delay: Math.random() * 2,
-    duration: 1 + Math.random() * 2,
-    size: 2 + Math.random() * 4,
-  }));
-}
 
 export function KoScreen() {
   const router = useRouter();
@@ -25,62 +13,33 @@ export function KoScreen() {
   const [playlistUrl, setPlaylistUrl] = useState<string | null>(null);
 
   const loser = teams.find((t) => t.id !== winner?.id);
-  const stars = useMemo(() => generateStars(30), []);
 
   useEffect(() => {
     const timer = setTimeout(() => setShowDetails(true), 1500);
     return () => clearTimeout(timer);
   }, []);
 
-  const handlePlayAgain = () => {
+  const handleRematch = () => {
     dispatch({ type: "RESET" });
     router.push("/setup");
   };
 
-  const handleBackToHome = () => {
-    dispatch({ type: "RESET" });
-    router.push("/");
-  };
-
-  // Get album art collage from round results
-  const albumArts = roundResults
-    .filter((r) => r.albumArt)
-    .map((r) => r.albumArt)
-    .slice(0, 8);
-
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[var(--bg-primary)] overflow-auto px-6 py-10">
-      {/* Celebration stars */}
-      {stars.map((star) => (
-        <div
-          key={star.id}
-          className="absolute rounded-full bg-[var(--neon-yellow)] opacity-0"
-          style={{
-            left: `${star.left}%`,
-            top: `${star.top}%`,
-            width: `${star.size}px`,
-            height: `${star.size}px`,
-            animation: `twinkle ${star.duration}s ease-in-out ${star.delay}s infinite`,
-            boxShadow: "0 0 6px var(--neon-yellow)",
-          }}
-        />
-      ))}
-
-      {/* Radial glow */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background: "radial-gradient(circle at center, rgba(239, 68, 68, 0.2) 0%, transparent 50%)",
-        }}
-      />
+    <div
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center overflow-auto"
+      style={{ background: "var(--bg-primary)", padding: "40px 24px" }}
+    >
+      {/* Starry background */}
+      <div className="starry-bg" aria-hidden="true" />
 
       {/* KO Text */}
-      <div className="text-center mb-8 relative z-10">
+      <div className="text-center relative z-10" style={{ marginBottom: "24px" }}>
         <div className="ko-slam">
           <h1
-            className="font-retro text-[8rem] md:text-[12rem] tracking-wider neon-glow"
+            className="font-display text-gold-3d"
             style={{
-              color: "var(--flash-miss)",
+              fontSize: "clamp(80px, 16vw, 160px)",
+              lineHeight: "1",
             }}
           >
             K.O.
@@ -88,115 +47,137 @@ export function KoScreen() {
         </div>
 
         <div className={`transition-all duration-700 delay-700 ${showDetails ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
-          <p className="font-retro text-2xl text-[var(--text-muted)] mt-2 tracking-wider">
+          <p className="text-subtitle-2" style={{ marginTop: "12px", color: "var(--text-muted)" }}>
             {loser?.name ?? "Team"} has been defeated!
           </p>
         </div>
       </div>
 
-      {/* Winner */}
+      {/* Winner + Battle Summary */}
       {showDetails && winner && (
-        <div className="text-center space-y-6 fade-in max-w-2xl mx-auto px-4 relative z-10">
-          {/* Winner Banner */}
-          <div
-            className="inline-block px-8 py-3 rounded-lg"
-            style={{
-              background: "linear-gradient(135deg, var(--flash-perfect), var(--neon-yellow))",
-              boxShadow: "0 0 30px rgba(251, 191, 36, 0.5)",
-            }}
-          >
-            <p className="font-retro text-xl text-black uppercase tracking-[0.3em]">
-              WINNER
-            </p>
-          </div>
-
-          <div className="space-y-2">
+        <div
+          className="text-center fade-in mx-auto relative z-10"
+          style={{
+            maxWidth: "640px",
+            padding: "0 16px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "24px",
+          }}
+        >
+          {/* Winner name */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             <h2
-              className="font-retro text-5xl md:text-7xl text-[var(--text-primary)] tracking-wider neon-glow-sm"
-              style={{ color: "var(--flash-perfect)" }}
+              className="font-display"
+              style={{
+                fontSize: "clamp(32px, 6vw, 56px)",
+                lineHeight: 1.1,
+                color: "var(--gold)",
+              }}
             >
-              {winner.name}
+              {winner.name} wins!
             </h2>
-            <p className="font-retro text-xl text-[var(--hp-full)]">
+            <p className="text-body-2" style={{ color: "var(--text-muted)" }}>
               {winner.hp} HP remaining
             </p>
           </div>
 
-          {/* Album Art Collage */}
-          {albumArts.length > 0 && (
-            <div className="pt-4">
-              <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider mb-3">
-                Songs from this battle
-              </p>
-              <div className="flex flex-wrap justify-center gap-2">
-                {albumArts.map((art, i) => (
-                  <img
-                    key={i}
-                    src={art}
-                    alt=""
-                    className="w-16 h-16 rounded object-cover transition-all hover:scale-110 hover:shadow-[0_0_15px_var(--accent-glow)]"
-                    style={{
-                      opacity: 0,
-                      animation: `fadeIn 0.3s ease-out ${i * 100}ms forwards`,
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Round Summary */}
-          <div className="pt-4">
-            <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider mb-3">
-              Battle Summary
+          {/* Stats row */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            <p className="text-subtitle-3" style={{ color: "var(--text-secondary)" }}>
+              Battle summary
             </p>
-            <div className="grid grid-cols-2 gap-4 text-center">
-              <div className="card-glow p-4">
-                <div className="font-retro text-4xl text-[var(--text-primary)]">
+
+            <div className="flex justify-center" style={{ gap: "16px" }}>
+              <div
+                className="card-glow flex-1"
+                style={{ padding: "16px", textAlign: "center", maxWidth: "200px" }}
+              >
+                <div
+                  className="font-display"
+                  style={{ fontSize: "32px", lineHeight: 1.2, color: "var(--text-primary)" }}
+                >
                   {roundResults.length}
                 </div>
-                <div className="text-xs text-[var(--text-muted)]">Total Rounds</div>
+                <div className="text-caption" style={{ color: "var(--text-muted)", marginTop: "4px" }}>
+                  Total rounds
+                </div>
               </div>
-              <div className="card-glow p-4">
-                <div className="font-retro text-4xl text-[var(--flash-perfect)] neon-glow-sm">
+              <div
+                className="card-glow flex-1"
+                style={{ padding: "16px", textAlign: "center", maxWidth: "200px" }}
+              >
+                <div
+                  className="font-display"
+                  style={{ fontSize: "32px", lineHeight: 1.2, color: "var(--gold)" }}
+                >
                   {roundResults.filter((r) => r.damage === 0).length}
                 </div>
-                <div className="text-xs text-[var(--text-muted)]">Perfects</div>
+                <div className="text-caption" style={{ color: "var(--text-muted)", marginTop: "4px" }}>
+                  Perfect
+                </div>
               </div>
             </div>
 
-            {/* Per-round details */}
-            <div className="mt-4 space-y-1 max-h-48 overflow-y-auto">
+            {/* Per-round list */}
+            <div
+              className="overflow-y-auto"
+              style={{
+                maxHeight: "300px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "4px",
+              }}
+            >
               {roundResults.map((result, i) => {
                 const team = teams.find((t) => t.id === result.teamId);
                 return (
                   <div
                     key={i}
-                    className="flex items-center justify-between px-3 py-2 rounded text-xs bg-[var(--bg-surface)] border border-[var(--border-subtle)] hover:border-[var(--border-default)] transition-colors"
+                    className="flex items-center justify-between rounded-lg transition-colors"
+                    style={{
+                      padding: "12px 16px",
+                      background: "var(--bg-secondary)",
+                      borderBottom: "1px solid var(--border-subtle)",
+                    }}
                   >
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center min-w-0" style={{ gap: "10px" }}>
                       {result.albumArt && (
-                        <img src={result.albumArt} alt="" className="w-6 h-6 rounded object-cover shrink-0" />
+                        <img
+                          src={result.albumArt}
+                          alt={`${result.trackName} cover`}
+                          className="rounded object-cover shrink-0"
+                          style={{ width: "32px", height: "32px" }}
+                        />
                       )}
-                      <span className="text-[var(--text-secondary)] truncate">
-                        {result.trackName}
+                      <span
+                        className="text-body-2 truncate"
+                        style={{ color: "var(--text-secondary)" }}
+                      >
+                        {result.artistName} - {result.trackName}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3 shrink-0 ml-2">
-                      <span className="text-[var(--text-muted)]">{team?.name}</span>
+                    <div className="flex items-center shrink-0" style={{ gap: "12px", marginLeft: "10px" }}>
+                      <span className="text-caption" style={{ color: "var(--text-muted)" }}>
+                        {team?.name}
+                      </span>
                       <span
-                        className="font-bold"
+                        className="text-body-2"
                         style={{
+                          fontWeight: 500,
                           color:
                             result.damage === 0
-                              ? "var(--flash-perfect)"
+                              ? "var(--gold)"
                               : result.correct
-                              ? "var(--flash-hit)"
-                              : "var(--flash-miss)",
-                          textShadow: result.damage === 0 ? "0 0 8px var(--flash-perfect)" : "none",
+                              ? "var(--success)"
+                              : "var(--destructive)",
                         }}
                       >
-                        {result.damage === 0 ? "PERFECT" : result.correct ? `-${result.damage}` : "MISS"}
+                        {result.damage === 0
+                          ? "0 HP"
+                          : result.correct
+                          ? `-${result.damage} HP`
+                          : `-${result.damage} HP`}
                       </span>
                     </div>
                   </div>
@@ -206,7 +187,7 @@ export function KoScreen() {
           </div>
 
           {/* Save as Playlist */}
-          <div className="pt-2">
+          <div>
             {playlistState === "idle" && (
               <button
                 onClick={async () => {
@@ -246,20 +227,23 @@ export function KoScreen() {
               </button>
             )}
             {playlistState === "saving" && (
-              <div className="flex items-center justify-center gap-2 text-sm text-[var(--text-muted)]">
+              <div
+                className="flex items-center justify-center text-body-2"
+                style={{ gap: "10px", color: "var(--text-muted)" }}
+              >
                 <div className="w-4 h-4 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
                 Creating playlist...
               </div>
             )}
             {playlistState === "saved" && (
-              <div className="text-sm text-[var(--hp-full)] neon-glow-sm">
+              <div className="text-body-2" style={{ color: "var(--success)" }}>
                 Playlist saved!{" "}
                 {playlistUrl && (
                   <a
                     href={playlistUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="underline hover:text-white"
+                    className="underline hover:opacity-80"
                   >
                     Open in Spotify
                   </a>
@@ -267,25 +251,20 @@ export function KoScreen() {
               </div>
             )}
             {playlistState === "error" && (
-              <div className="text-sm text-[var(--flash-miss)]">
+              <div className="text-body-2" style={{ color: "var(--destructive)" }}>
                 Failed to create playlist. Try reconnecting to Spotify.
               </div>
             )}
           </div>
 
-          {/* Actions */}
-          <div className="flex gap-4 justify-center pt-6">
+          {/* Single Rematch CTA */}
+          <div className="flex justify-center" style={{ paddingTop: "16px" }}>
             <button
-              onClick={handlePlayAgain}
+              onClick={handleRematch}
               className="btn-arcade cursor-pointer"
+              style={{ minWidth: "200px" }}
             >
               REMATCH
-            </button>
-            <button
-              onClick={handleBackToHome}
-              className="btn-secondary cursor-pointer"
-            >
-              Back to Lobby
             </button>
           </div>
         </div>

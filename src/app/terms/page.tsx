@@ -4,36 +4,41 @@ import Link from "next/link";
 
 export default function TermsOfServicePage() {
   return (
-    <main className="flex-1 px-4 py-12 max-w-3xl mx-auto w-full">
-      <Link
-        href="/"
-        className="text-sm text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+    <main className="min-h-screen flex flex-col items-center">
+      <div
+        className="w-full flex flex-col"
+        style={{ maxWidth: '720px', padding: '48px 24px 64px' }}
       >
-        &larr; Back to Home
-      </Link>
+        <Link
+          href="/"
+          className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+          style={{ fontSize: '14px', lineHeight: '1.5' }}
+        >
+          &larr; Back to Home
+        </Link>
 
-      <article className="mt-8 space-y-8 text-[var(--text-secondary)] text-sm leading-relaxed">
-        <header>
-          <h1 className="text-3xl font-black text-[var(--text-primary)] tracking-tight">
-            Terms of Service
-          </h1>
-          <p className="mt-2 text-[var(--text-muted)]">
-            Last updated: February 2026
-          </p>
-        </header>
+        <article style={{ marginTop: '32px', display: 'flex', flexDirection: 'column', gap: '32px' }}>
+          <header>
+            <h1 className="font-black text-[var(--text-primary)] tracking-tight" style={{ fontSize: '32px', lineHeight: '1.3' }}>
+              Terms of Service
+            </h1>
+            <p className="text-[var(--text-muted)]" style={{ marginTop: '10px', fontSize: '14px', lineHeight: '1.6' }}>
+              Last updated: February 2026
+            </p>
+          </header>
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-[var(--text-primary)]">
-            1. Acceptance of Terms
-          </h2>
-          <p>
-            By using SoundClash, you agree to these Terms of Service. If you do
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <h2 className="font-bold text-[var(--text-primary)]" style={{ fontSize: '18px', lineHeight: '1.4' }}>
+              1. Acceptance of Terms
+            </h2>
+            <p className="text-[var(--text-secondary)]" style={{ fontSize: '14px', lineHeight: '1.7' }}>
+              By using SoundClash, you agree to these Terms of Service. If you do
             not agree, do not use the application.
           </p>
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-[var(--text-primary)]">
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <h2 className="font-bold text-[var(--text-primary)]" style={{ fontSize: '18px', lineHeight: '1.4' }}>
             2. Description of Service
           </h2>
           <p>
@@ -44,8 +49,8 @@ export default function TermsOfServicePage() {
           </p>
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-[var(--text-primary)]">
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <h2 className="font-bold text-[var(--text-primary)]" style={{ fontSize: '18px', lineHeight: '1.4' }}>
             3. Spotify Content and Platform
           </h2>
           <p>
@@ -72,8 +77,8 @@ export default function TermsOfServicePage() {
           </ul>
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-[var(--text-primary)]">
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <h2 className="font-bold text-[var(--text-primary)]" style={{ fontSize: '18px', lineHeight: '1.4' }}>
             4. Developer Responsibility
           </h2>
           <p>
@@ -85,8 +90,8 @@ export default function TermsOfServicePage() {
           </p>
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-[var(--text-primary)]">
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <h2 className="font-bold text-[var(--text-primary)]" style={{ fontSize: '18px', lineHeight: '1.4' }}>
             5. Spotify as Third-Party Beneficiary
           </h2>
           <p>
@@ -99,8 +104,8 @@ export default function TermsOfServicePage() {
           </p>
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-[var(--text-primary)]">
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <h2 className="font-bold text-[var(--text-primary)]" style={{ fontSize: '18px', lineHeight: '1.4' }}>
             6. Disclaimer of Warranties
           </h2>
           <p className="uppercase text-xs leading-relaxed text-[var(--text-muted)]">
@@ -116,8 +121,8 @@ export default function TermsOfServicePage() {
           </p>
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-[var(--text-primary)]">
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <h2 className="font-bold text-[var(--text-primary)]" style={{ fontSize: '18px', lineHeight: '1.4' }}>
             7. Limitation of Liability
           </h2>
           <p className="uppercase text-xs leading-relaxed text-[var(--text-muted)]">
@@ -129,8 +134,8 @@ export default function TermsOfServicePage() {
           </p>
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-[var(--text-primary)]">
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <h2 className="font-bold text-[var(--text-primary)]" style={{ fontSize: '18px', lineHeight: '1.4' }}>
             8. Your Spotify Account
           </h2>
           <p>
@@ -150,8 +155,8 @@ export default function TermsOfServicePage() {
           </p>
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-[var(--text-primary)]">
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <h2 className="font-bold text-[var(--text-primary)]" style={{ fontSize: '18px', lineHeight: '1.4' }}>
             9. Changes to These Terms
           </h2>
           <p>
@@ -161,8 +166,8 @@ export default function TermsOfServicePage() {
           </p>
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-[var(--text-primary)]">
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <h2 className="font-bold text-[var(--text-primary)]" style={{ fontSize: '18px', lineHeight: '1.4' }}>
             10. Contact
           </h2>
           <p>
@@ -170,8 +175,9 @@ export default function TermsOfServicePage() {
             via the project&apos;s repository or contact information provided in
             the application.
           </p>
-        </section>
-      </article>
+          </section>
+        </article>
+      </div>
     </main>
   );
 }

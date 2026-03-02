@@ -5,39 +5,33 @@ import { getDamageLabel } from "@/lib/game/damage";
 
 type DamageOverlayProps = {
   damage: number;
+  artistOnly?: boolean;
   onComplete: () => void;
 };
 
-// Generate random confetti particles with neon colors
 function generateConfetti(count: number) {
-  const neonColors = [
-    "#a855f7", // accent purple
-    "#22d3ee", // neon cyan
-    "#f472b6", // neon pink
-    "#fde047", // neon yellow
-    "#4ade80", // neon green
-    "#ffffff", // white
+  const colors = [
+    "#fff982", "#d4cc5a", "#1ed760", "#ffffff", "#d3eafe", "#ffccf3",
   ];
   return Array.from({ length: count }, (_, i) => ({
     id: i,
     left: Math.random() * 100,
     delay: Math.random() * 0.5,
     duration: 1 + Math.random() * 1,
-    color: neonColors[Math.floor(Math.random() * neonColors.length)],
+    color: colors[Math.floor(Math.random() * colors.length)],
     size: 6 + Math.random() * 8,
     rotation: Math.random() * 360,
     isCircle: Math.random() > 0.5,
   }));
 }
 
-export function DamageOverlay({ damage, onComplete }: DamageOverlayProps) {
-  const label = getDamageLabel(damage);
-  const isCorrect = label === "PERFECT" || label === "HIT";
+export function DamageOverlay({ damage, artistOnly = false, onComplete }: DamageOverlayProps) {
+  const label = getDamageLabel(damage, artistOnly);
+  const isPositive = label === "PERFECT" || label === "HIT" || label === "CLOSE";
 
-  // Generate confetti only for correct guesses
   const confetti = useMemo(
-    () => (isCorrect ? generateConfetti(label === "PERFECT" ? 50 : 30) : []),
-    [isCorrect, label]
+    () => (isPositive ? generateConfetti(label === "PERFECT" ? 50 : 25) : []),
+    [isPositive, label]
   );
 
   useEffect(() => {
@@ -46,27 +40,26 @@ export function DamageOverlay({ damage, onComplete }: DamageOverlayProps) {
   }, [onComplete]);
 
   const flashClass =
-    label === "PERFECT" ? "flash-perfect" : label === "HIT" ? "flash-hit" : "flash-miss";
+    label === "PERFECT" ? "flash-perfect"
+      : label === "HIT" ? "flash-hit"
+        : label === "CLOSE" ? "flash-close"
+          : "flash-miss";
 
   const textColor =
-    label === "PERFECT"
-      ? "var(--flash-perfect)"
-      : label === "HIT"
-      ? "var(--flash-hit)"
-      : "var(--flash-miss)";
+    label === "PERFECT" ? "var(--flash-perfect)"
+      : label === "HIT" ? "var(--flash-hit)"
+        : label === "CLOSE" ? "var(--warning)"
+          : "var(--flash-miss)";
 
   return (
     <>
-      {/* Full-screen flash */}
       <div className={`fixed inset-0 z-40 pointer-events-none ${flashClass}`} />
 
-      {/* Screen shake for miss */}
       {label === "MISS" && (
         <div className="fixed inset-0 z-30 pointer-events-none screen-shake" />
       )}
 
-      {/* Confetti celebration for correct guesses */}
-      {isCorrect && (
+      {isPositive && (
         <div className="fixed inset-0 z-45 pointer-events-none overflow-hidden">
           {confetti.map((c) => (
             <div
@@ -89,13 +82,9 @@ export function DamageOverlay({ damage, onComplete }: DamageOverlayProps) {
         </div>
       )}
 
-      {/* Centered result */}
       <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
-        <div
-          className={`text-center fade-in ${isCorrect ? "celebration-bounce" : ""}`}
-        >
-          {/* Glow burst for correct answers */}
-          {isCorrect && (
+        <div className={`text-center fade-in ${isPositive ? "celebration-bounce" : ""}`}>
+          {isPositive && (
             <div
               className="absolute inset-0 rounded-full celebration-burst"
               style={{
@@ -105,19 +94,22 @@ export function DamageOverlay({ damage, onComplete }: DamageOverlayProps) {
           )}
 
           <div
-            className="font-retro text-7xl md:text-9xl tracking-wider relative neon-glow"
+            className="font-display relative"
             style={{
+              fontSize: "clamp(56px, 12vw, 120px)",
+              lineHeight: 1.1,
               color: textColor,
+              letterSpacing: "0.05em",
             }}
           >
             {label}
           </div>
 
           {damage > 0 && (
-            <div className="damage-float mt-4">
+            <div className="damage-float" style={{ marginTop: "16px" }}>
               <span
-                className="font-retro text-4xl neon-glow-sm"
-                style={{ color: textColor }}
+                className="font-display"
+                style={{ fontSize: "clamp(24px, 5vw, 40px)", color: textColor }}
               >
                 -{damage} HP
               </span>
@@ -125,14 +117,41 @@ export function DamageOverlay({ damage, onComplete }: DamageOverlayProps) {
           )}
 
           {label === "PERFECT" && (
-            <div className="mt-3 font-retro text-2xl text-[var(--flash-perfect)] neon-glow-sm tracking-wider">
+            <div
+              className="font-display"
+              style={{
+                marginTop: "12px",
+                fontSize: "clamp(16px, 3vw, 24px)",
+                color: "var(--flash-perfect)",
+              }}
+            >
               NO DAMAGE!
             </div>
           )}
 
           {label === "HIT" && (
-            <div className="mt-3 font-retro text-xl text-[var(--flash-hit)] neon-glow-sm tracking-wider">
+            <div
+              className="text-body-1"
+              style={{
+                marginTop: "12px",
+                color: "var(--flash-hit)",
+                fontWeight: 500,
+              }}
+            >
               NICE GUESS!
+            </div>
+          )}
+
+          {label === "CLOSE" && (
+            <div
+              className="text-body-1"
+              style={{
+                marginTop: "12px",
+                color: "var(--warning)",
+                fontWeight: 500,
+              }}
+            >
+              RIGHT ARTIST!
             </div>
           )}
         </div>

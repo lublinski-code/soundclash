@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { TeamSetup } from "@/components/setup/TeamSetup";
 import { GenrePicker } from "@/components/setup/GenrePicker";
-import { CountryPicker } from "@/components/setup/CountryPicker";
+import { EraPicker } from "@/components/setup/EraPicker";
 import { GameConfigPanel } from "@/components/setup/GameConfig";
 import { useGameStore } from "@/store/gameStore";
 import { useSpotifyStore } from "@/store/spotifyStore";
@@ -28,8 +28,8 @@ export default function SetupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [initializingPlayer, setInitializingPlayer] = useState(false);
+  const [showSettings, setShowSettings] = useState(true);
 
-  // Set random genre default on client-side only (avoids hydration mismatch)
   useEffect(() => {
     if (config.genres.length === 0) {
       setConfig({ genres: getRandomGenres(1) });
@@ -43,7 +43,6 @@ export default function SetupPage() {
       return;
     }
 
-    // Singleton: already connected, just sync the store
     if (isPlayerConnected()) {
       const did = getDeviceId();
       if (did) {
@@ -53,7 +52,6 @@ export default function SetupPage() {
       return;
     }
 
-    // Not ready and not already trying to init
     if (!isPlayerReady && !initializingPlayer) {
       setInitializingPlayer(true);
       (async () => {
@@ -101,12 +99,11 @@ export default function SetupPage() {
     setError(null);
 
     try {
-      console.log("Starting song pool build with config:", config);
       const songPool = await buildSongPool(config);
 
-      if (songPool.length < 10) {
+      if (songPool.length < 5) {
         setError(
-          `Only found ${songPool.length} songs. Try selecting different genres.`
+          `Only found ${songPool.length} songs. Try selecting more genres or removing era filters.`
         );
         setLoading(false);
         return;
@@ -133,108 +130,159 @@ export default function SetupPage() {
   if (!isPlayerReady && !initializingPlayer) validationMessages.push("Spotify player not ready — go back and reconnect");
 
   return (
-    <main className="flex-1 flex flex-col">
-      {/* Container with max-width and center alignment */}
-      <div className="flex-1 w-full max-w-3xl mx-auto px-6 md:px-8 py-8 md:py-12">
+    <main
+      className="min-h-screen flex flex-col items-center"
+      style={{ background: "var(--bg-primary)" }}
+    >
+      <div
+        className="w-full flex flex-col items-center"
+        style={{ maxWidth: "720px", padding: "24px 16px 48px" }}
+      >
         {/* Header */}
-        <header className="text-center mb-10">
-          <div className="flex justify-between items-start mb-6">
+        <header className="w-full" style={{ marginBottom: "24px" }}>
+          <div className="flex justify-start" style={{ marginBottom: "16px" }}>
             <button
               onClick={() => router.push("/")}
-              className="btn-muted cursor-pointer text-sm"
+              className="btn-muted cursor-pointer"
+              style={{ fontSize: "12px", lineHeight: "1.5" }}
+              aria-label="Back to home"
             >
-              ← Back
+              &larr; Back
             </button>
-            <div className="w-16" /> {/* Spacer for balance */}
           </div>
-          <h1 className="font-retro text-5xl md:text-6xl text-[var(--text-primary)] tracking-wider neon-glow-sm">
-            BATTLE <span className="text-[var(--accent)]">SETUP</span>
+          <h1
+            className="font-display text-center"
+            style={{
+              fontSize: "clamp(32px, 6vw, 48px)",
+              lineHeight: 1.2,
+              color: "var(--text-primary)",
+            }}
+          >
+            Battle Setup
           </h1>
-          <div className="pixel-divider w-32 mt-4 mx-auto" />
-          <p className="text-sm text-[var(--text-muted)] mt-4">
-            Configure your match and hit start
-          </p>
         </header>
 
-        {/* Content sections */}
-        <div className="space-y-8">
-          {/* Player status */}
-          {initializingPlayer && (
-            <div className="card-glow flex items-center gap-3 p-5">
-              <div className="w-4 h-4 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
-              <span className="text-sm text-[var(--text-muted)]">Initializing Spotify player...</span>
-            </div>
-          )}
-
-          {isPlayerReady && (
-            <div
-              className="card flex items-center gap-3 p-5"
-              style={{ borderColor: 'var(--hp-full)', borderWidth: '1px', boxShadow: '0 0 20px rgba(34, 197, 94, 0.15)' }}
-            >
-              <span className="text-[var(--hp-full)] text-xl">✓</span>
-              <span className="text-sm text-[var(--text-secondary)]">Spotify player ready</span>
-            </div>
-          )}
-
-          {/* Teams Card */}
-          <section className="card p-6 md:p-8 space-y-6">
-            <div className="flex items-center gap-3">
-              <span className="text-[var(--neon-cyan)] text-2xl">👥</span>
-              <h2 className="text-sm font-bold text-[var(--text-muted)] uppercase tracking-wider">
-                Players
-              </h2>
-            </div>
+        {/* Content */}
+        <div className="w-full flex flex-col" style={{ gap: "16px" }}>
+          {/* Players section */}
+          <section
+            className="card"
+            style={{ padding: "20px 24px" }}
+          >
             <TeamSetup />
           </section>
 
-          {/* Music Selection Card */}
-          <section className="card p-6 md:p-8 space-y-8">
-            <div className="flex items-center gap-3">
-              <span className="text-[var(--neon-pink)] text-2xl">🎵</span>
-              <h2 className="text-sm font-bold text-[var(--text-muted)] uppercase tracking-wider">
-                Music Selection
-              </h2>
-            </div>
-            <GenrePicker />
-            <div className="pixel-divider opacity-30" />
-            <CountryPicker />
-          </section>
-
-          {/* Game Config Card */}
-          <section className="card p-6 md:p-8">
-            <div className="flex items-center gap-3 mb-6">
-              <span className="text-[var(--neon-yellow)] text-2xl">⚙️</span>
-              <h2 className="text-sm font-bold text-[var(--text-muted)] uppercase tracking-wider">
+          {/* Battle Settings - collapsible */}
+          <section
+            className="card"
+            style={{ padding: "20px 24px" }}
+          >
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className="w-full flex items-center justify-between cursor-pointer"
+              style={{ background: "none", border: "none" }}
+              aria-expanded={showSettings}
+            >
+              <h2
+                className="text-subtitle-3"
+                style={{ color: "var(--text-secondary)" }}
+              >
                 Battle Settings
               </h2>
-            </div>
-            <GameConfigPanel />
+              <svg
+                viewBox="0 0 24 24"
+                width="20"
+                height="20"
+                fill="none"
+                stroke="var(--text-muted)"
+                strokeWidth="2"
+                strokeLinecap="round"
+                style={{
+                  transition: "transform 200ms ease",
+                  transform: showSettings ? "rotate(180deg)" : "rotate(0deg)",
+                }}
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+
+            {showSettings && (
+              <div
+                style={{
+                  marginTop: "20px",
+                  paddingTop: "20px",
+                  borderTop: "1px solid var(--border-subtle)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "24px",
+                }}
+              >
+                <GenrePicker />
+                <EraPicker />
+                <GameConfigPanel />
+              </div>
+            )}
           </section>
         </div>
 
-        {/* Start Button Section */}
-        <div className="flex flex-col items-center gap-5 pt-12 pb-8">
+        {/* Status + Start */}
+        <div className="flex flex-col items-center" style={{ marginTop: "24px", gap: "12px" }}>
+          {initializingPlayer && (
+            <div
+              className="flex items-center text-caption"
+              style={{ gap: "8px", color: "var(--text-muted)" }}
+            >
+              <div className="w-3 h-3 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
+              Initializing player...
+            </div>
+          )}
+          {isPlayerReady && (
+            <p className="text-caption" style={{ color: "var(--success)" }}>
+              Status: Ready!
+            </p>
+          )}
+
           {validationMessages.length > 0 && (
-            <div className="text-xs text-[var(--text-muted)] space-y-1.5 text-center">
+            <div
+              className="text-center"
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "4px",
+              }}
+            >
               {validationMessages.map((msg, i) => (
-                <p key={i}>• {msg}</p>
+                <p
+                  key={i}
+                  className="text-caption"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  {msg}
+                </p>
               ))}
             </div>
           )}
 
           {error && (
-            <p className="text-sm text-[var(--flash-miss)] neon-glow-sm max-w-md text-center">{error}</p>
+            <p
+              className="text-body-2 text-center"
+              style={{ color: "var(--destructive)", maxWidth: "400px" }}
+            >
+              {error}
+            </p>
           )}
 
           <button
+            type="button"
             onClick={handleStartBattle}
             disabled={!canStart || loading}
-            className="btn-arcade disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+            className="btn-arcade disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            style={{ minWidth: "200px" }}
           >
             {loading ? (
-              <span className="flex items-center gap-3">
-                <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Loading Songs...
+              <span className="flex items-center" style={{ gap: "12px" }}>
+                <span className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                LOADING...
               </span>
             ) : (
               "START BATTLE"

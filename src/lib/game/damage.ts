@@ -1,30 +1,24 @@
 import { DEFAULT_DAMAGE_TABLE } from "./constants";
 
-/**
- * Calculate damage based on snippet level and whether the guess was correct.
- * @param snippetLevel - Index into snippet durations (0 = first/shortest)
- * @param correct - Whether the guess was correct
- * @param damageTable - Custom damage table or default
- * @returns Damage amount (0 or positive number)
- */
+/** Fixed damage when the player knows the artist but not the song */
+export const ARTIST_ONLY_DAMAGE = 15;
+
 export function calculateDamage(
   snippetLevel: number,
   correct: boolean,
   damageTable: number[] = DEFAULT_DAMAGE_TABLE
 ): number {
   if (correct) {
-    // Correct guess: damage is based on how many snippets it took
     return damageTable[Math.min(snippetLevel, damageTable.length - 2)] ?? 0;
   }
-  // Wrong or gave up: max damage (last entry in table)
   return damageTable[damageTable.length - 1] ?? 30;
 }
 
-/**
- * Get the label for a damage result
- */
-export function getDamageLabel(damage: number): "PERFECT" | "HIT" | "MISS" {
+export type DamageLabel = "PERFECT" | "HIT" | "CLOSE" | "MISS";
+
+export function getDamageLabel(damage: number, artistOnly = false): DamageLabel {
   if (damage === 0) return "PERFECT";
+  if (artistOnly) return "CLOSE";
   if (damage < 30) return "HIT";
   return "MISS";
 }

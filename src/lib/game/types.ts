@@ -32,6 +32,7 @@ export type RoundResult = {
   albumArt: string;
   snippetLevel: number;
   correct: boolean;
+  artistOnly: boolean;
   damage: number;
   hpAfter: number;
 };

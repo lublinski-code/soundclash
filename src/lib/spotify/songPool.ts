@@ -13,7 +13,7 @@ import type { SpotifyTrack, GameConfig } from "../game/types";
 import { getAccessToken } from "../spotify/auth";
 
 const BASE = "https://api.spotify.com/v1";
-const SEARCH_LIMIT = 10; // Max that works in dev mode
+const PER_ARTIST_LIMIT = 10; // Keep small to maximise artist variety across the pool
 
 async function requireToken(): Promise<string> {
   const token = await getAccessToken();
@@ -62,21 +62,50 @@ function dedup(tracks: SpotifyTrack[]): SpotifyTrack[] {
   });
 }
 
+/**
+ * Non-Latin script detection: rejects songs with names primarily in
+ * Hebrew, Arabic, CJK, Cyrillic, Thai, Devanagari, etc.
+ * Allows accented Latin characters (French, Spanish, German, etc.)
+ */
+const NON_LATIN_HEAVY = /^[^a-zA-Z]*$/;
+const NON_LATIN_SCRIPTS = /[\u0590-\u05FF\u0600-\u06FF\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF\u0400-\u04FF\u0E00-\u0E7F\u0900-\u097F]/;
+
+function hasNonLatinName(name: string): boolean {
+  if (NON_LATIN_HEAVY.test(name)) return true;
+  const nonLatinChars = (name.match(NON_LATIN_SCRIPTS) || []).length;
+  const totalAlpha = (name.match(/[a-zA-Z\u00C0-\u024F]/g) || []).length;
+  return nonLatinChars > totalAlpha;
+}
+
 function isValidTrack(raw: unknown): raw is SpotifyTrack {
   if (!raw || typeof raw !== "object") return false;
   const t = raw as Record<string, unknown>;
-  return (
-    typeof t.id === "string" &&
-    !!t.id &&
-    typeof t.name === "string" &&
-    typeof t.uri === "string" &&
-    typeof t.duration_ms === "number" &&
-    t.duration_ms > 15000 &&
-    Array.isArray(t.artists) &&
-    t.artists.length > 0 &&
-    !!t.album &&
-    typeof t.album === "object"
-  );
+  if (
+    typeof t.id !== "string" ||
+    !t.id ||
+    typeof t.name !== "string" ||
+    typeof t.uri !== "string" ||
+    typeof t.duration_ms !== "number" ||
+    t.duration_ms < 15000 ||
+    !Array.isArray(t.artists) ||
+    t.artists.length === 0 ||
+    !t.album ||
+    typeof t.album !== "object"
+  ) return false;
+
+  // Reject non-Latin song names (Hebrew, Arabic, CJK, etc.)
+  if (hasNonLatinName(t.name as string)) return false;
+
+  // Reject "Various Artists" compilations
+  const artists = t.artists as { name?: string }[];
+  if (artists.some(a => /^various\s*artists?$/i.test(a.name ?? ""))) return false;
+
+  // Only accept album/single, reject compilations
+  const album = t.album as Record<string, unknown>;
+  const albumType = album.album_type as string | undefined;
+  if (albumType && albumType !== "album" && albumType !== "single") return false;
+
+  return true;
 }
 
 /**
@@ -163,28 +192,19 @@ function isObscureTrack(track: SpotifyTrack): boolean {
     }
   }
 
-  // Check album name for deluxe/bonus indicators
+  // Check album name for live/session-only indicators.
+  // NOTE: Remastered albums are intentionally NOT filtered — for 80s/90s music
+  // the remastered version is often the only canonical release on Spotify
+  // (e.g. "Master of Puppets (Remastered)" is the standard Metallica album).
   const albumObscurePatterns = [
-    /\bdeluxe\b/i,
-    /\bexpanded\b/i,
-    /\banniversary\b/i,
-    /\bremaster/i,
-    /\bbonus\s*tracks?\b/i,
     /\blive\s*album/i,
     /\bcomplete\s*sessions/i,
-    /\bdemos?\b/i,
+    /\bdemos?\s*(album|collection|sessions?)\b/i,
   ];
 
-  // If album is deluxe AND track position is high (bonus tracks), skip
-  // We can't easily get track number from the type, so just check album name
   for (const pattern of albumObscurePatterns) {
     if (pattern.test(albumName)) {
-      // Only filter if the track name ALSO has indicators
-      // (allows main tracks from deluxe albums)
-      const trackHasIndicator = /\bremaster/i.test(name) ||
-        /\bbonus/i.test(name) ||
-        /\bdeluxe/i.test(name) ||
-        /\bdemo/i.test(name);
+      const trackHasIndicator = /\bbonus\s*track/i.test(name) || /\bdemo\b/i.test(name);
       if (trackHasIndicator) {
         return true;
       }
@@ -206,8 +226,9 @@ function extractTracks(items: unknown): SpotifyTrack[] {
 async function searchForTracks(
   query: string,
   token: string,
-  limit = SEARCH_LIMIT,
-  offset = 0
+  limit = PER_ARTIST_LIMIT,
+  offset = 0,
+  market?: string
 ): Promise<SpotifyTrack[]> {
   const params = new URLSearchParams({
     q: query,
@@ -215,6 +236,7 @@ async function searchForTracks(
     limit: String(limit),
     offset: String(offset),
   });
+  if (market) params.set("market", market);
 
   const data = (await spFetch(`/search?${params.toString()}`, token)) as Record<
     string,
@@ -228,206 +250,150 @@ async function searchForTracks(
   return extractTracks(tracks.items);
 }
 
-// ─── Browse: New Releases ───
 
-async function getNewReleases(
-  token: string,
-  limit = SEARCH_LIMIT
-): Promise<SpotifyTrack[]> {
-  const data = (await spFetch(
-    `/browse/new-releases?limit=${limit}`,
-    token
-  )) as Record<string, unknown> | null;
-  if (!data) return [];
+// ─── Genre search strategy ───
+// Artist-only approach: curated lists of well-known acts per genre
+// guarantee genre-relevant, recognizable results. Genre tag searches
+// and user library fallbacks were removed because they returned
+// unrelated songs (e.g. black metal in grunge, kids songs).
 
-  const albums = data.albums as Record<string, unknown> | undefined;
-  if (!albums) return [];
-
-  const items = albums.items as unknown[] | undefined;
-  if (!Array.isArray(items)) return [];
-
-  // New releases gives us albums; search for tracks from each album
-  const allTracks: SpotifyTrack[] = [];
-  for (const album of items.slice(0, 5)) {
-    if (!album || typeof album !== "object") continue;
-    const a = album as Record<string, unknown>;
-    const name = a.name as string | undefined;
-    if (!name) continue;
-    const artist =
-      Array.isArray(a.artists) && a.artists.length > 0
-        ? (a.artists[0] as Record<string, unknown>)?.name
-        : undefined;
-    const query = artist ? `${name} ${artist}` : name;
-    const tracks = await searchForTracks(query, token, 3, 0);
-    allTracks.push(...tracks);
-  }
-  return allTracks;
-}
-
-// ─── User's own saved tracks (fallback) ───
-
-async function getUserSavedTracks(
-  token: string,
-  limit = SEARCH_LIMIT,
-  offset = 0
-): Promise<SpotifyTrack[]> {
-  const data = (await spFetch(
-    `/me/tracks?limit=${limit}&offset=${offset}`,
-    token
-  )) as Record<string, unknown> | null;
-  if (!data) return [];
-
-  const items = data.items as unknown[] | undefined;
-  if (!Array.isArray(items)) return [];
-
-  return items
-    .filter(
-      (item): item is Record<string, unknown> =>
-        !!item && typeof item === "object"
-    )
-    .map((item) => item.track)
-    .filter(isValidTrack);
-}
-
-// ─── User's top tracks (fallback) ───
-
-async function getUserTopTracks(
-  token: string,
-  timeRange: "short_term" | "medium_term" | "long_term" = "medium_term",
-  limit = SEARCH_LIMIT
-): Promise<SpotifyTrack[]> {
-  const data = (await spFetch(
-    `/me/top/tracks?time_range=${timeRange}&limit=${limit}`,
-    token
-  )) as Record<string, unknown> | null;
-  if (!data) return [];
-
-  return extractTracks(data.items);
-}
-
-// ─── Genre search term database ───
-// Multiple diverse queries per genre to maximize discovery.
-// Includes decade-specific, artist-adjacent, and mood-based terms.
-
-// Popularity-biased terms added to EVERY genre (prepended)
-const POPULAR_PREFIXES = [
-  "top hits", "greatest hits", "number one", "best songs ever", "most popular",
-];
-
-const GENRE_SEARCH_TERMS: Record<string, string[]> = {
+const GENRE_ARTISTS: Record<string, string[]> = {
   rock: [
-    "top rock hits", "greatest rock hits", "rock number one",
-    "rock anthem", "classic rock", "rock and roll hit", "best rock song",
-    "rock ballad", "rock 2020", "rock 2010", "rock 2000", "rock 1990",
-    "stadium rock", "arena rock", "rock guitar solo", "rock power ballad",
+    "Queen", "Led Zeppelin", "AC/DC", "The Rolling Stones", "Nirvana",
+    "Foo Fighters", "Red Hot Chili Peppers", "U2", "Bon Jovi", "Aerosmith",
+    "The Beatles", "Pink Floyd", "Guns N' Roses", "Green Day", "Coldplay",
+    "Muse", "Oasis", "The Who", "Linkin Park", "Arctic Monkeys",
   ],
   pop: [
-    "top pop hits", "greatest pop hits", "pop number one",
-    "pop hit", "pop anthem", "pop classic", "top pop song",
-    "pop 2020", "pop 2015", "pop 2010", "pop dance hit",
-    "pop ballad", "pop radio hit", "pop summer hit", "catchy pop song",
+    "Taylor Swift", "Ed Sheeran", "Adele", "Bruno Mars", "Dua Lipa",
+    "The Weeknd", "Billie Eilish", "Justin Bieber", "Ariana Grande", "Lady Gaga",
+    "Rihanna", "Katy Perry", "Beyoncé", "Shakira", "Michael Jackson",
+    "Madonna", "Olivia Rodrigo", "Harry Styles", "Doja Cat", "SZA",
   ],
   metal: [
-    "heavy metal", "metal classic", "thrash metal hit", "metal anthem",
-    "death metal", "power metal", "metal 2020", "metal 2010",
-    "metalcore hit", "progressive metal", "nu metal hit", "metal riff",
+    "Metallica", "Iron Maiden", "Black Sabbath", "Slayer", "Megadeth",
+    "Pantera", "Judas Priest", "System Of A Down", "Avenged Sevenfold",
+    "Tool", "Rammstein", "Slipknot", "Korn", "Disturbed", "Ozzy Osbourne",
+    "Dio", "Motörhead", "Anthrax", "Alice Cooper", "Whitesnake",
+    "Guns N' Roses", "Deep Purple", "Rainbow", "Accept", "Dokken",
+    "Twisted Sister", "Quiet Riot", "W.A.S.P.", "Warrant", "Scorpions",
+    "Def Leppard", "Bon Jovi", "Mötley Crüe", "Poison", "Cinderella",
+    "Sepultura", "Machine Head", "Fear Factory", "Rage Against the Machine",
+    "Faith No More", "Alice In Chains", "Soundgarden", "Type O Negative",
+    "Testament", "Exodus", "Death", "Cannibal Corpse", "Queensrÿche",
   ],
   "hip-hop": [
-    "hip hop classic", "rap hit", "best rap song", "hip hop anthem",
-    "old school hip hop", "rap 2020", "rap 2015", "hip hop beat",
-    "gangsta rap", "conscious rap", "trap hit", "hip hop banger",
+    "Eminem", "Kendrick Lamar", "Drake", "Jay-Z", "Kanye West",
+    "Tupac", "Notorious B.I.G.", "Snoop Dogg", "Travis Scott", "J. Cole",
+    "Nas", "Lil Wayne", "50 Cent", "Post Malone", "Dr. Dre",
+    "OutKast", "Nicki Minaj", "Cardi B", "Tyler, The Creator", "A$AP Rocky",
   ],
   dance: [
-    "dance hit", "dance anthem", "dance classic", "dance floor hit",
-    "dance pop", "dance 2020", "dance 2015", "dance music banger",
-    "dance party song", "club dance hit", "electronic dance", "house dance",
+    "Calvin Harris", "David Guetta", "Avicii", "Tiësto", "Marshmello",
+    "Martin Garrix", "Kygo", "Zedd", "The Chainsmokers", "Major Lazer",
+    "Clean Bandit", "Disclosure", "Daft Punk", "Robin Schulz", "Joel Corry",
   ],
   electronic: [
-    "electronic hit", "EDM anthem", "synth pop hit", "electronic classic",
-    "techno hit", "house music", "trance anthem", "electronic 2020",
-    "dubstep hit", "ambient electronic", "electro pop", "synth wave",
+    "Daft Punk", "Deadmau5", "Skrillex", "Aphex Twin", "The Prodigy",
+    "Chemical Brothers", "Kraftwerk", "Depeche Mode", "Fatboy Slim", "Moby",
+    "Flume", "ODESZA", "Bonobo", "Justice", "Caribou",
   ],
   "r-n-b": [
-    "R&B classic", "R&B hit", "soul R&B", "best R&B song",
-    "R&B 2020", "R&B 2010", "R&B slow jam", "neo soul",
-    "R&B ballad", "contemporary R&B", "R&B groove", "smooth R&B",
+    "Usher", "Alicia Keys", "Frank Ocean", "The Weeknd", "SZA",
+    "Beyoncé", "Chris Brown", "Ne-Yo", "John Legend", "H.E.R.",
+    "Miguel", "Khalid", "Daniel Caesar", "Lauryn Hill", "Mary J. Blige",
+    "Whitney Houston", "Marvin Gaye", "Stevie Wonder", "D'Angelo", "TLC",
   ],
   jazz: [
-    "jazz classic", "jazz standard", "smooth jazz", "jazz hit",
-    "bebop jazz", "jazz fusion", "vocal jazz", "jazz piano",
-    "cool jazz", "jazz saxophone", "modern jazz", "jazz swing",
+    "Miles Davis", "John Coltrane", "Louis Armstrong", "Duke Ellington",
+    "Ella Fitzgerald", "Billie Holiday", "Charlie Parker", "Thelonious Monk",
+    "Dave Brubeck", "Nina Simone", "Herbie Hancock", "Chet Baker",
   ],
   classical: [
-    "classical masterpiece", "famous classical", "beethoven symphony",
-    "mozart concerto", "classical orchestra", "romantic era classical",
-    "bach fugue", "chopin nocturne", "vivaldi four seasons", "classical piano",
+    "Beethoven", "Mozart", "Bach", "Chopin", "Vivaldi",
+    "Tchaikovsky", "Debussy", "Schubert", "Brahms", "Dvořák",
   ],
   country: [
-    "country hit", "country classic", "best country song", "country anthem",
-    "country 2020", "country 2015", "country ballad", "country rock",
-    "country pop crossover", "outlaw country", "modern country", "country love song",
+    "Johnny Cash", "Dolly Parton", "Luke Combs", "Morgan Wallen",
+    "Carrie Underwood", "Blake Shelton", "Keith Urban", "Tim McGraw",
+    "Shania Twain", "Willie Nelson", "Chris Stapleton", "Zach Bryan",
+    "Jason Aldean", "Kenny Chesney", "George Strait",
   ],
   blues: [
-    "blues classic", "best blues song", "blues guitar", "chicago blues",
-    "delta blues", "blues rock", "electric blues", "blues ballad",
-    "modern blues", "blues harmonica", "blues shuffle", "blues legend",
+    "B.B. King", "Muddy Waters", "Stevie Ray Vaughan", "Robert Johnson",
+    "Howlin' Wolf", "Eric Clapton", "John Lee Hooker", "Buddy Guy",
+    "Etta James", "Albert King", "Keb' Mo'", "Joe Bonamassa",
   ],
   reggae: [
-    "reggae classic", "reggae hit", "dancehall hit", "reggae anthem",
-    "roots reggae", "reggae love song", "ska hit", "dub reggae",
-    "modern reggae", "reggae 2020", "island reggae", "reggae groove",
+    "Bob Marley", "Peter Tosh", "Jimmy Cliff", "UB40", "Sean Paul",
+    "Damian Marley", "Shaggy", "Ziggy Marley", "Buju Banton", "Lee Perry",
   ],
   punk: [
-    "punk rock classic", "punk hit", "punk anthem", "punk rock 90s",
-    "pop punk hit", "punk 2000", "hardcore punk", "punk rock banger",
-    "skate punk", "punk rock anthem", "punk fast song", "punk energy",
+    "The Ramones", "Sex Pistols", "The Clash", "Green Day", "Blink-182",
+    "The Offspring", "Bad Religion", "NOFX", "Sum 41", "Misfits",
+    "Dead Kennedys", "Rancid", "Rise Against", "Pennywise", "Social Distortion",
   ],
   soul: [
-    "soul classic", "soul hit", "motown classic", "soul anthem",
-    "northern soul", "soul ballad", "soul 70s", "neo soul hit",
-    "soul groove", "soul singer", "soul power", "funk soul",
+    "Aretha Franklin", "Marvin Gaye", "Stevie Wonder", "Ray Charles",
+    "James Brown", "Otis Redding", "Al Green", "Sam Cooke",
+    "Curtis Mayfield", "Bill Withers", "Isaac Hayes", "Leon Bridges",
   ],
   indie: [
-    "indie rock hit", "indie classic", "indie anthem", "indie 2020",
-    "indie folk", "indie pop hit", "dream pop", "shoegaze",
-    "indie 2015", "lo-fi indie", "indie guitar", "indie bedroom pop",
+    "Arctic Monkeys", "Tame Impala", "Radiohead", "The Strokes",
+    "Vampire Weekend", "The National", "Bon Iver", "Fleet Foxes",
+    "Mac DeMarco", "Arcade Fire", "Phoebe Bridgers", "Beach House",
+    "The XX", "Modest Mouse", "The Smiths",
   ],
   latin: [
-    "latin hit", "reggaeton hit", "latin pop", "salsa classic",
-    "bachata hit", "cumbia", "latin 2020", "latin dance",
-    "merengue hit", "latin urban", "bossa nova", "latin trap",
+    "Bad Bunny", "J Balvin", "Shakira", "Daddy Yankee", "Ozuna",
+    "Maluma", "Rosalía", "Luis Fonsi", "Enrique Iglesias", "Ricky Martin",
+    "Marc Anthony", "Juanes", "Karol G", "Rauw Alejandro", "Nicky Jam",
   ],
   funk: [
-    "funk classic", "funk hit", "funky music", "funk anthem",
-    "funk 70s", "disco funk", "p-funk", "funk groove",
-    "funk bass", "electro funk", "funk soul", "funk dance",
+    "James Brown", "Parliament", "Funkadelic", "Earth Wind & Fire",
+    "Sly and the Family Stone", "Prince", "Rick James", "Bootsy Collins",
+    "Tower of Power", "The Meters", "Kool & The Gang", "Chic",
   ],
   disco: [
-    "disco classic", "disco hit", "disco anthem", "disco 70s",
-    "disco dance", "nu disco", "disco funk", "disco diva",
-    "disco ball", "disco party", "disco groove", "disco fever",
+    "Bee Gees", "Donna Summer", "Gloria Gaynor", "ABBA", "Chic",
+    "KC and the Sunshine Band", "Village People", "Kool & The Gang",
+    "Earth Wind & Fire", "Diana Ross", "Daft Punk", "Kylie Minogue",
   ],
   alternative: [
-    "alternative rock hit", "alt rock classic", "90s alternative",
-    "alternative anthem", "post punk", "new wave hit", "shoegaze",
-    "alternative 2020", "alternative 2010", "alt rock anthem", "indie alternative",
-    "alternative ballad",
+    "Radiohead", "R.E.M.", "The Cure", "Depeche Mode", "The Smiths",
+    "Pixies", "Joy Division", "New Order", "Talking Heads", "Blur",
+    "Beck", "Cage The Elephant", "alt-J", "Gorillaz", "Placebo",
   ],
   grunge: [
-    "grunge classic", "grunge hit", "90s grunge", "seattle grunge",
-    "grunge anthem", "grunge rock", "post grunge", "grunge ballad",
-    "grunge guitar", "grunge 1994", "grunge alternative", "grunge angst",
+    "Nirvana", "Pearl Jam", "Soundgarden", "Alice In Chains",
+    "Stone Temple Pilots", "Mudhoney", "Screaming Trees", "Temple of the Dog",
+    "Bush", "Silverchair", "Hole", "Smashing Pumpkins",
   ],
 };
 
+
 /**
- * Build a song pool. Search-first for discovery; user library only as fallback.
+ * Build a year filter string for Spotify search (e.g. "year:1990-1999").
+ * When multiple eras are selected, returns the widest range spanning all of them.
+ */
+function buildYearFilter(eras: string[]): string {
+  if (!eras || eras.length === 0) return "";
+  const starts = eras.map(e => parseInt(e, 10)).filter(n => !isNaN(n));
+  if (starts.length === 0) return "";
+  const min = Math.min(...starts);
+  const max = Math.max(...starts) + 9;
+  return ` year:${min}-${max}`;
+}
+
+/**
+ * Build a song pool from curated artist lists only.
+ * No user library fallbacks — avoids unrelated songs leaking in.
  */
 export async function buildSongPool(
   config: GameConfig,
   targetSize = 60
 ): Promise<SpotifyTrack[]> {
-  const { genres } = config;
+  const { genres, eras, market } = config;
 
   if (genres.length === 0) {
     console.warn("[SongPool] No genres selected");
@@ -436,132 +402,78 @@ export async function buildSongPool(
 
   const token = await requireToken();
   let allTracks: SpotifyTrack[] = [];
+  const yearFilter = buildYearFilter(eras);
 
-  console.log(`[SongPool] genres=[${genres.join(", ")}], target=${targetSize}`);
+  console.log(`[SongPool] genres=[${genres.join(", ")}], eras=[${(eras ?? []).join(", ")}], market=${market}, target=${targetSize}`);
+  if (yearFilter) console.log(`[SongPool] Year filter:${yearFilter}`);
 
-  // ── Strategy 1: Diverse track search (PRIMARY) ──
-  console.log("[SongPool] Strategy 1: Track search (discovery)...");
+  // ── Artist-based search ──
+  // Strategy: query MANY artists with FEW tracks each to maximise variety.
+  // Never break early — always search all available artists for the genre.
   for (const genre of genres) {
-    const terms = GENRE_SEARCH_TERMS[genre] ?? [
-      `${genre} hit song`,
-      `${genre} classic`,
-      `best ${genre} songs`,
-      `${genre} anthem`,
-      `${genre} music`,
-      `${genre} 2020`,
-      `${genre} 2015`,
-      `${genre} 2010`,
-      `${genre} 2000`,
-      `${genre} 1990`,
-    ];
+    const artists = GENRE_ARTISTS[genre] ?? [];
+    const shuffledArtists = shuffle(artists);
 
-    // Shuffle terms so each game gets different results
-    const shuffledTerms = shuffle(terms);
+    for (const artist of shuffledArtists) {
+      const offset = Math.floor(Math.random() * 5);
+      const query = `artist:${artist}${yearFilter}`;
+      const tracks = await searchForTracks(query, token, PER_ARTIST_LIMIT, offset, market);
 
-    for (const term of shuffledTerms) {
-      if (allTracks.length >= targetSize * 2) break;
+      // Verify results actually belong to the queried artist — Spotify's
+      // fuzzy matching can return unrelated artists (e.g. "Death" → classical).
+      const normalQ = artist.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const verified = tracks.filter((t) => {
+        const trackArtists = t.artists as { name?: string }[];
+        return trackArtists.some((a) => {
+          const normalA = (a.name ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+          return normalA.includes(normalQ) || normalQ.includes(normalA);
+        });
+      });
 
-      // Random offset (0-50) for pagination diversity
-      const offset = Math.floor(Math.random() * 50);
-      const tracks = await searchForTracks(term, token, SEARCH_LIMIT, offset);
-      if (tracks.length > 0) {
-        console.log(`[SongPool]   "${term}" (offset ${offset}): ${tracks.length}`);
-        allTracks.push(...tracks);
-      }
-    }
-
-    // Also search the genre name directly with varying offsets
-    for (let i = 0; i < 3 && allTracks.length < targetSize * 2; i++) {
-      const offset = i * 10 + Math.floor(Math.random() * 10);
-      const tracks = await searchForTracks(genre, token, SEARCH_LIMIT, offset);
-      if (tracks.length > 0) {
-        console.log(`[SongPool]   "${genre}" (page ${i}, offset ${offset}): ${tracks.length}`);
-        allTracks.push(...tracks);
+      if (verified.length > 0) {
+        console.log(`[SongPool]   "${artist}" (offset ${offset}): ${verified.length} tracks`);
+        allTracks.push(...verified);
       }
     }
   }
 
-  console.log(`[SongPool] After search: ${dedup(allTracks).length} unique`);
-
-  // ── Strategy 2: Browse new releases ──
-  if (dedup(allTracks).length < targetSize) {
-    console.log("[SongPool] Strategy 2: New releases...");
-    const newTracks = await getNewReleases(token, SEARCH_LIMIT);
-    if (newTracks.length > 0) {
-      console.log(`[SongPool]   New releases: ${newTracks.length}`);
-      allTracks.push(...newTracks);
-    }
-  }
-
-  console.log(`[SongPool] After new releases: ${dedup(allTracks).length} unique`);
-
-  // ── Strategy 3: User's top tracks (FALLBACK only) ──
-  if (dedup(allTracks).length < targetSize) {
-    console.log("[SongPool] Strategy 3 (fallback): User's top tracks...");
-    for (const range of ["medium_term", "long_term", "short_term"] as const) {
-      const topTracks = await getUserTopTracks(token, range);
-      if (topTracks.length > 0) {
-        console.log(`[SongPool]   Top tracks (${range}): ${topTracks.length}`);
-        allTracks.push(...topTracks);
-      }
-      if (dedup(allTracks).length >= targetSize) break;
-    }
-  }
-
-  // ── Strategy 4: User's saved tracks (LAST RESORT) ──
-  if (dedup(allTracks).length < targetSize) {
-    console.log("[SongPool] Strategy 4 (last resort): Saved tracks...");
-    for (
-      let offset = 0;
-      offset < 100 && dedup(allTracks).length < targetSize;
-      offset += SEARCH_LIMIT
-    ) {
-      const saved = await getUserSavedTracks(token, SEARCH_LIMIT, offset);
-      if (saved.length === 0) break;
-      console.log(`[SongPool]   Saved (offset ${offset}): ${saved.length}`);
-      allTracks.push(...saved);
-    }
-  }
+  console.log(`[SongPool] After artist search: ${dedup(allTracks).length} unique`);
 
   // ── Post-processing ──
   allTracks = dedup(allTracks);
 
-  // Popularity bias: prefer well-known tracks players can actually guess
+  // Lower the popularity floor when eras are selected — classic 80s/90s
+  // tracks often score 20-35 on Spotify despite being well-known hits.
+  const popularityFloor = yearFilter ? 15 : 30;
+
   const withPopularity = allTracks.filter((t) => {
     const pop = (t as Record<string, unknown>).popularity;
-    return typeof pop === "number";
+    return typeof pop === "number" && pop >= popularityFloor;
   });
 
-  if (withPopularity.length > 20) {
-    const popular = withPopularity.filter(
-      (t) => ((t as Record<string, unknown>).popularity as number) >= 50
-    );
-    const mid = withPopularity.filter((t) => {
-      const p = (t as Record<string, unknown>).popularity as number;
-      return p >= 20 && p < 50;
-    });
-    const noPop = allTracks.filter((t) => {
-      const pop = (t as Record<string, unknown>).popularity;
-      return typeof pop !== "number";
-    });
-
-    // 70% popular, 30% mid-range, skip deep cuts (< 20)
-    const popTarget = Math.floor(targetSize * 0.7);
-    const midTarget = targetSize - popTarget;
-
-    allTracks = [
-      ...shuffle(popular).slice(0, popTarget),
-      ...shuffle(mid).slice(0, midTarget),
-      ...shuffle(noPop).slice(0, 10),
-    ];
-
-    console.log(
-      `[SongPool] Popularity split: ${popular.length} popular, ${mid.length} mid, ${noPop.length} unknown`
-    );
+  if (withPopularity.length >= 20) {
+    allTracks = withPopularity;
+    console.log(`[SongPool] After popularity filter (>= ${popularityFloor}): ${allTracks.length}`);
+  } else {
+    console.warn(`[SongPool] Only ${withPopularity.length} tracks above popularity floor, keeping all ${allTracks.length}`);
   }
 
-  allTracks = dedup(allTracks);
-  allTracks = shuffle(allTracks);
+  // ── Artist-diversity cap ──
+  // No single artist should dominate the pool. Cap at ~4 tracks per artist
+  // so the game feels like a broad genre quiz, not a single-band quiz.
+  const maxPerArtist = Math.max(4, Math.ceil(targetSize / 12));
+  const artistCount: Record<string, number> = {};
+  allTracks = shuffle(allTracks).filter((t) => {
+    const mainArtist = (t.artists as { name?: string }[])[0]?.name ?? "unknown";
+    artistCount[mainArtist] = (artistCount[mainArtist] ?? 0) + 1;
+    return artistCount[mainArtist] <= maxPerArtist;
+  });
+
+  const uniqueArtists = Object.keys(artistCount).filter((a) => artistCount[a] > 0);
+  console.log(`[SongPool] After diversity cap (max ${maxPerArtist}/artist): ${allTracks.length} tracks from ${uniqueArtists.length} artists`);
+
+  // Final trim to target size
+  allTracks = shuffle(allTracks).slice(0, targetSize);
   console.log(`[SongPool] Final: ${allTracks.length} tracks`);
 
   return allTracks;

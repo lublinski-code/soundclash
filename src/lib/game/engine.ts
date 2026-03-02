@@ -1,5 +1,5 @@
 import type { Team, GamePhase, RoundResult, GameConfig, SpotifyTrack } from "./types";
-import { calculateDamage } from "./damage";
+import { calculateDamage, ARTIST_ONLY_DAMAGE } from "./damage";
 
 export type GameState = {
   phase: GamePhase;
@@ -77,6 +77,18 @@ function isTrackMatch(
 }
 
 /**
+ * Check if the guessed track's artist matches the target track's artist,
+ * even though the song title is wrong. Used for partial credit.
+ */
+function isArtistMatch(guessArtists: string[], target: SpotifyTrack): boolean {
+  const targetArtists = target.artists.map((a) => a.name.toLowerCase());
+  const guessLower = guessArtists.map((a) => a.toLowerCase());
+  return guessLower.some((g) =>
+    targetArtists.some((t) => g.includes(t) || t.includes(g))
+  );
+}
+
+/**
  * Pure game state reducer. All game logic lives here.
  */
 export function gameReducer(state: GameState, action: GameAction): GameState {
@@ -129,10 +141,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         action.artistNames,
         currentSong
       );
+
+      const artistMatch = !correct && isArtistMatch(action.artistNames, currentSong);
       const maxLevel = state.config.snippetDurations.length - 1;
 
-      // Wrong guess but not at max level → advance to next snippet (no damage yet)
-      if (!correct && state.currentSnippetLevel < maxLevel) {
+      // Right artist but wrong song — give another chance with next snippet
+      if (artistMatch && state.currentSnippetLevel < maxLevel) {
         return {
           ...state,
           phase: "SNIPPET",
@@ -140,12 +154,19 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         };
       }
 
-      // Correct guess OR wrong at final tier → apply damage
-      const damage = calculateDamage(
-        state.currentSnippetLevel,
-        correct,
-        state.config.damageTable
-      );
+      // Wrong guess (no artist match) and not at max level → next snippet
+      if (!correct && !artistMatch && state.currentSnippetLevel < maxLevel) {
+        return {
+          ...state,
+          phase: "SNIPPET",
+          currentSnippetLevel: state.currentSnippetLevel + 1,
+        };
+      }
+
+      // At max level: artist match gets partial credit, full wrong gets max damage
+      const damage = artistMatch
+        ? ARTIST_ONLY_DAMAGE
+        : calculateDamage(state.currentSnippetLevel, correct, state.config.damageTable);
 
       const teamIdx = state.currentTeamIndex;
       const team = state.teams[teamIdx];
@@ -166,6 +187,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         albumArt: currentSong.album.images[0]?.url ?? "",
         snippetLevel: state.currentSnippetLevel,
         correct,
+        artistOnly: artistMatch,
         damage,
         hpAfter: newHp,
       };
@@ -218,6 +240,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         albumArt: currentSong.album.images[0]?.url ?? "",
         snippetLevel: state.currentSnippetLevel,
         correct: false,
+        artistOnly: false,
         damage,
         hpAfter: newHp,
       };
@@ -257,6 +280,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         albumArt: currentSong.album.images[0]?.url ?? "",
         snippetLevel: state.currentSnippetLevel,
         correct: false,
+        artistOnly: false,
         damage: maxDamage,
         hpAfter: newHp,
       };

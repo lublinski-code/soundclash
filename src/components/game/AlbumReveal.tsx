@@ -33,7 +33,6 @@ export function AlbumReveal({
 
     const showTimer = setTimeout(() => setShow(true), 100);
 
-    // Auto-start full song playback after reveal animation
     const playTimer = setTimeout(() => {
       onPlay?.();
       setPlaying(true);
@@ -65,83 +64,112 @@ export function AlbumReveal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--bg-primary)] bg-opacity-95">
-      {/* Radial glow background */}
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: "var(--bg-primary)" }}
+    >
+      {/* Blurred album art background */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          background: `radial-gradient(circle at center, ${dominantColor}30 0%, transparent 50%)`,
+          backgroundImage: `url(${albumArt})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          filter: "blur(60px) brightness(0.2) saturate(1.4)",
+          transform: "scale(1.2)",
         }}
+        aria-hidden="true"
       />
 
       <div
-        className={`text-center space-y-8 px-6 max-w-2xl mx-auto transition-all duration-700 ${
+        className={`text-center mx-auto transition-all duration-700 relative z-10 ${
           show ? "opacity-100" : "opacity-0"
         }`}
+        style={{
+          padding: "0 24px",
+          maxWidth: "640px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "32px",
+        }}
       >
-        {/* Album Art - vinyl record aesthetic */}
+        {/* Album Art */}
         <div className="relative inline-block">
-          {/* Outer glow */}
           <div
-            className="absolute -inset-4 rounded-[var(--radius-xl)] blur-3xl opacity-50"
+            className="absolute -inset-4 rounded-[var(--radius-xl)] blur-3xl opacity-40"
             style={{ backgroundColor: dominantColor }}
-          />
-
-          {/* Neon border ring */}
-          <div
-            className="absolute -inset-1 rounded-[var(--radius-xl)] opacity-80"
-            style={{
-              background: `linear-gradient(135deg, ${dominantColor}, var(--accent), var(--neon-pink))`,
-              padding: "2px",
-            }}
           />
 
           <img
             src={albumArt}
             alt={`${trackName} album art`}
-            className="album-reveal relative w-72 h-72 md:w-80 md:h-80 lg:w-96 lg:h-96 rounded-[var(--radius-xl)] object-cover"
+            className="album-reveal relative rounded-[var(--radius-xl)] object-cover"
             style={{
+              width: "clamp(240px, 40vw, 340px)",
+              height: "clamp(240px, 40vw, 340px)",
               boxShadow: glow,
             }}
           />
 
-          {/* Playing indicator */}
           {playing && (
-            <div className="absolute bottom-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-sm">
-              <div className="flex items-end gap-0.5 h-3">
-                <div className="w-1 bg-[var(--accent)] rounded-full animate-pulse" style={{ height: "60%", animationDelay: "0ms" }} />
-                <div className="w-1 bg-[var(--accent)] rounded-full animate-pulse" style={{ height: "100%", animationDelay: "150ms" }} />
-                <div className="w-1 bg-[var(--accent)] rounded-full animate-pulse" style={{ height: "40%", animationDelay: "300ms" }} />
+            <div
+              className="absolute bottom-4 right-4 flex items-center rounded-full"
+              style={{
+                gap: "6px",
+                padding: "6px 12px",
+                background: "rgba(0,0,0,0.6)",
+                backdropFilter: "blur(8px)",
+              }}
+            >
+              <div className="flex items-end" style={{ gap: "2px", height: "12px" }}>
+                <div className="rounded-full animate-pulse" style={{ width: "3px", height: "60%", background: "var(--accent)", animationDelay: "0ms" }} />
+                <div className="rounded-full animate-pulse" style={{ width: "3px", height: "100%", background: "var(--accent)", animationDelay: "150ms" }} />
+                <div className="rounded-full animate-pulse" style={{ width: "3px", height: "40%", background: "var(--accent)", animationDelay: "300ms" }} />
               </div>
-              <span className="text-xs text-[var(--text-primary)]">Playing</span>
+              <span className="text-caption" style={{ color: "var(--text-primary)" }}>Playing</span>
             </div>
           )}
         </div>
 
         {/* Track Info */}
-        <div className="space-y-3 fade-in max-w-md mx-auto" style={{ animationDelay: "0.4s" }}>
+        <div
+          className="fade-in mx-auto"
+          style={{
+            animationDelay: "0.4s",
+            maxWidth: "420px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "8px",
+          }}
+        >
           <h3
-            className="font-retro text-3xl md:text-4xl lg:text-5xl text-[var(--text-primary)] leading-tight tracking-wider neon-glow-sm"
+            className="font-display"
             style={{
-              textShadow: `0 0 30px ${dominantColor}`,
+              fontSize: "clamp(20px, 4vw, 32px)",
+              lineHeight: 1.2,
+              color: "var(--text-primary)",
             }}
           >
             {trackName}
           </h3>
-          <p className="text-lg md:text-xl text-[var(--text-secondary)]">{artistName}</p>
+          <p className="text-body-1" style={{ color: "var(--text-secondary)" }}>
+            {artistName}
+          </p>
         </div>
 
         {/* Playback Controls */}
         <div
-          className="flex items-center justify-center gap-4 fade-in"
-          style={{ animationDelay: "0.6s" }}
+          className="flex items-center justify-center fade-in"
+          style={{ animationDelay: "0.6s", gap: "16px" }}
         >
-          {/* Play / Pause */}
           <button
             onClick={handleTogglePlay}
-            className="btn-icon w-14 h-14 cursor-pointer"
+            className="btn-icon cursor-pointer"
             aria-label={playing ? "Pause" : "Play"}
             style={{
+              width: "56px",
+              height: "56px",
               borderColor: dominantColor,
               color: dominantColor,
             }}
@@ -157,12 +185,11 @@ export function AlbumReveal({
             )}
           </button>
 
-          {/* Next Round */}
           <button
             onClick={handleNextRound}
             className="btn-arcade cursor-pointer"
           >
-            Next Round →
+            Next Round
           </button>
         </div>
       </div>

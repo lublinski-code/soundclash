@@ -11,41 +11,57 @@ export function HpHud() {
   const activePlayer1 = team1.members[team1.activeIndex];
   const activePlayer2 = team2.members[team2.activeIndex];
 
-  // 1v1 mode: each team has exactly 1 member
   const is1v1 = team1.members.length === 1 && team2.members.length === 1;
 
   return (
-    <div className="w-full px-6 py-5 bg-[var(--bg-secondary)] border-b border-[var(--border-default)]">
-      <div className="max-w-3xl mx-auto">
-        <div className="text-center mb-3">
-          <span className="font-retro text-lg text-[var(--accent)] uppercase tracking-[0.3em] neon-glow-sm">
-            Round {roundNumber}
-          </span>
+    <div className="w-full relative z-10" style={{ padding: "24px 32px 0" }}>
+      {/* Round label — centered, large, light-blue */}
+      <div className="text-center" style={{ marginBottom: "16px" }}>
+        <span
+          className="font-display"
+          style={{
+            fontSize: "clamp(32px, 5vw, 48px)",
+            lineHeight: 1.2,
+            color: "var(--light-blue)",
+          }}
+        >
+          Round {roundNumber}
+        </span>
+      </div>
+
+      {/* HP bars row — full width, flat */}
+      <div className="flex items-end" style={{ gap: "0" }}>
+        <HpBar
+          hp={team1.hp}
+          maxHp={config.startingHp}
+          label={is1v1 ? (activePlayer1?.name ?? "Player 1") : team1.name}
+          subLabel={is1v1 ? undefined : activePlayer1?.name}
+          side="left"
+          isActive={currentTeamIndex === 0}
+        />
+
+        {/* VS — centered, aligned with bar height */}
+        <div
+          className="font-display shrink-0 flex items-end justify-center"
+          style={{
+            fontSize: "clamp(20px, 3vw, 48px)",
+            lineHeight: 1.2,
+            color: "var(--text-muted)",
+            minWidth: "clamp(48px, 6vw, 80px)",
+            paddingBottom: "8px",
+          }}
+        >
+          VS
         </div>
 
-        <div className="flex items-center gap-4">
-          <HpBar
-            hp={team1.hp}
-            maxHp={config.startingHp}
-            label={is1v1 ? activePlayer1?.name ?? "Player 1" : team1.name}
-            subLabel={is1v1 ? undefined : activePlayer1?.name}
-            side="left"
-            isActive={currentTeamIndex === 0}
-          />
-
-          <div className="font-retro text-2xl text-[var(--accent)] px-3 shrink-0 neon-glow-sm">
-            VS
-          </div>
-
-          <HpBar
-            hp={team2.hp}
-            maxHp={config.startingHp}
-            label={is1v1 ? activePlayer2?.name ?? "Player 2" : team2.name}
-            subLabel={is1v1 ? undefined : activePlayer2?.name}
-            side="right"
-            isActive={currentTeamIndex === 1}
-          />
-        </div>
+        <HpBar
+          hp={team2.hp}
+          maxHp={config.startingHp}
+          label={is1v1 ? (activePlayer2?.name ?? "Player 2") : team2.name}
+          subLabel={is1v1 ? undefined : activePlayer2?.name}
+          side="right"
+          isActive={currentTeamIndex === 1}
+        />
       </div>
     </div>
   );

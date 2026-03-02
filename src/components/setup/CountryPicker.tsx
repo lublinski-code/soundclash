@@ -7,14 +7,18 @@ export function CountryPicker() {
   const { config, setConfig } = useGameStore();
 
   return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-bold text-[var(--text-secondary)] uppercase tracking-wider">
-        Country / Market
+    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+      <h3
+        className="text-body-2"
+        style={{ color: "var(--text-secondary)", fontWeight: 500 }}
+      >
+        Country Market
       </h3>
       <select
         value={config.market}
         onChange={(e) => setConfig({ market: e.target.value })}
-        className="w-full px-4 py-3 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-default)] text-[var(--text-primary)] text-sm outline-none focus:border-[var(--accent)] transition-colors appearance-none cursor-pointer"
+        className="input cursor-pointer"
+        style={{ fontSize: "14px", appearance: "none" }}
       >
         {MARKETS.map((market) => (
           <option key={market.code} value={market.code}>
@@ -22,7 +26,7 @@ export function CountryPicker() {
           </option>
         ))}
       </select>
-      <p className="text-xs text-[var(--text-muted)]">
+      <p className="text-caption" style={{ color: "var(--text-muted)" }}>
         Filters songs available in this market
       </p>
     </div>

@@ -4,38 +4,43 @@ import Link from "next/link";
 
 export default function PrivacyPolicyPage() {
   return (
-    <main className="flex-1 px-4 py-12 max-w-3xl mx-auto w-full">
-      <Link
-        href="/"
-        className="text-sm text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+    <main className="min-h-screen flex flex-col items-center">
+      <div
+        className="w-full flex flex-col"
+        style={{ maxWidth: '720px', padding: '48px 24px 64px' }}
       >
-        &larr; Back to Home
-      </Link>
+        <Link
+          href="/"
+          className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+          style={{ fontSize: '14px', lineHeight: '1.5' }}
+        >
+          &larr; Back to Home
+        </Link>
 
-      <article className="mt-8 space-y-8 text-[var(--text-secondary)] text-sm leading-relaxed">
-        <header>
-          <h1 className="text-3xl font-black text-[var(--text-primary)] tracking-tight">
-            Privacy Policy
-          </h1>
-          <p className="mt-2 text-[var(--text-muted)]">
-            Last updated: February 2026
-          </p>
-        </header>
+        <article style={{ marginTop: '32px', display: 'flex', flexDirection: 'column', gap: '32px' }}>
+          <header>
+            <h1 className="font-black text-[var(--text-primary)] tracking-tight" style={{ fontSize: '32px', lineHeight: '1.3' }}>
+              Privacy Policy
+            </h1>
+            <p className="text-[var(--text-muted)]" style={{ marginTop: '10px', fontSize: '14px', lineHeight: '1.6' }}>
+              Last updated: February 2026
+            </p>
+          </header>
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-[var(--text-primary)]">
-            1. What is SoundClash
-          </h2>
-          <p>
-            SoundClash is a personal, non-commercial music guessing game that
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <h2 className="font-bold text-[var(--text-primary)]" style={{ fontSize: '18px', lineHeight: '1.4' }}>
+              1. What is SoundClash
+            </h2>
+            <p className="text-[var(--text-secondary)]" style={{ fontSize: '14px', lineHeight: '1.7' }}>
+              SoundClash is a personal, non-commercial music guessing game that
             uses the Spotify Platform to play audio snippets. It is developed as
             a hobby project and is not affiliated with, endorsed by, or
             sponsored by Spotify.
           </p>
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-[var(--text-primary)]">
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <h2 className="font-bold text-[var(--text-primary)]" style={{ fontSize: '18px', lineHeight: '1.4' }}>
             2. Information We Access
           </h2>
           <p>
@@ -61,8 +66,8 @@ export default function PrivacyPolicyPage() {
           </p>
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-[var(--text-primary)]">
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <h2 className="font-bold text-[var(--text-primary)]" style={{ fontSize: '18px', lineHeight: '1.4' }}>
             3. How We Use Your Information
           </h2>
           <p>The data accessed from Spotify is used solely to:</p>
@@ -78,8 +83,8 @@ export default function PrivacyPolicyPage() {
           </p>
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-[var(--text-primary)]">
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <h2 className="font-bold text-[var(--text-primary)]" style={{ fontSize: '18px', lineHeight: '1.4' }}>
             4. Data Storage
           </h2>
           <p>
@@ -94,8 +99,8 @@ export default function PrivacyPolicyPage() {
           </p>
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-[var(--text-primary)]">
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <h2 className="font-bold text-[var(--text-primary)]" style={{ fontSize: '18px', lineHeight: '1.4' }}>
             5. Data Sharing
           </h2>
           <p>
@@ -105,8 +110,8 @@ export default function PrivacyPolicyPage() {
           </p>
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-[var(--text-primary)]">
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <h2 className="font-bold text-[var(--text-primary)]" style={{ fontSize: '18px', lineHeight: '1.4' }}>
             6. Cookies
           </h2>
           <p>
@@ -116,8 +121,8 @@ export default function PrivacyPolicyPage() {
           </p>
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-[var(--text-primary)]">
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <h2 className="font-bold text-[var(--text-primary)]" style={{ fontSize: '18px', lineHeight: '1.4' }}>
             7. Disconnecting Your Account
           </h2>
           <p>
@@ -139,8 +144,8 @@ export default function PrivacyPolicyPage() {
           </p>
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-[var(--text-primary)]">
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <h2 className="font-bold text-[var(--text-primary)]" style={{ fontSize: '18px', lineHeight: '1.4' }}>
             8. Children&apos;s Privacy
           </h2>
           <p>
@@ -149,8 +154,8 @@ export default function PrivacyPolicyPage() {
           </p>
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-[var(--text-primary)]">
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <h2 className="font-bold text-[var(--text-primary)]" style={{ fontSize: '18px', lineHeight: '1.4' }}>
             9. Changes to This Policy
           </h2>
           <p>
@@ -159,8 +164,8 @@ export default function PrivacyPolicyPage() {
           </p>
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-[var(--text-primary)]">
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <h2 className="font-bold text-[var(--text-primary)]" style={{ fontSize: '18px', lineHeight: '1.4' }}>
             10. Contact
           </h2>
           <p>
@@ -168,8 +173,9 @@ export default function PrivacyPolicyPage() {
             handled, you can reach the developer via the project&apos;s
             repository or contact information provided in the application.
           </p>
-        </section>
-      </article>
+          </section>
+        </article>
+      </div>
     </main>
   );
 }

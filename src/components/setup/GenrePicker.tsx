@@ -1,5 +1,6 @@
 "use client";
 
+import { Check } from "lucide-react";
 import { useGameStore } from "@/store/gameStore";
 import { GENRES } from "@/lib/game/constants";
 
@@ -19,30 +20,29 @@ export function GenrePicker() {
   };
 
   return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-bold text-[var(--text-secondary)] uppercase tracking-wider">
+    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+      <h3 className="text-body-2" style={{ color: "var(--text-secondary)", fontWeight: 500 }}>
         Genres
       </h3>
-      <div className="flex flex-wrap gap-2">
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
         {GENRES.map((genre) => {
           const selected = selectedGenres.includes(genre.id);
           return (
             <button
               key={genre.id}
               onClick={() => toggleGenre(genre.id)}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-all cursor-pointer ${
-                selected
-                  ? "bg-transparent text-[var(--accent)] border-2 border-[var(--accent)] shadow-[0_0_15px_var(--accent-dim)]"
-                  : "bg-transparent text-[var(--text-secondary)] border border-[var(--border-default)] hover:border-[var(--accent)] hover:text-[var(--accent)] hover:shadow-[0_0_10px_var(--accent-dim)]"
-              }`}
+              className="chip chip-gold cursor-pointer"
+              data-selected={selected}
+              style={{ gap: "6px" }}
             >
+              {selected && <Check size={14} strokeWidth={2.5} aria-hidden="true" />}
               {genre.label}
             </button>
           );
         })}
       </div>
       {selectedGenres.length === 0 && (
-        <p className="text-xs text-[var(--flash-miss)]">
+        <p className="text-caption" style={{ color: "var(--destructive)" }}>
           Select at least one genre
         </p>
       )}

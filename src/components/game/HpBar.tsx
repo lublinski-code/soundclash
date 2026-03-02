@@ -12,24 +12,16 @@ type HpBarProps = {
 };
 
 function getHpColor(percent: number): string {
-  if (percent > 60) return "var(--hp-full)";
-  if (percent > 30) return "var(--hp-mid)";
-  if (percent > 15) return "var(--hp-low)";
-  return "var(--hp-critical)";
-}
-
-function getHpGradient(percent: number): string {
-  if (percent > 60) return "linear-gradient(90deg, #16a34a, #22c55e, #4ade80)";
-  if (percent > 30) return "linear-gradient(90deg, #ca8a04, #eab308, #facc15)";
-  if (percent > 15) return "linear-gradient(90deg, #dc2626, #ef4444, #f87171)";
-  return "linear-gradient(90deg, #991b1b, #dc2626, #ef4444)";
+  if (percent > 60) return "var(--accent)";
+  if (percent > 30) return "var(--gold)";
+  if (percent > 15) return "var(--destructive)";
+  return "#dc2626";
 }
 
 export function HpBar({ hp, maxHp, label, subLabel, side, isActive }: HpBarProps) {
   const [displayHp, setDisplayHp] = useState(hp);
   const percent = Math.max(0, (displayHp / maxHp) * 100);
   const color = getHpColor(percent);
-  const gradient = getHpGradient(percent);
   const isCritical = percent <= 15;
 
   useEffect(() => {
@@ -53,72 +45,55 @@ export function HpBar({ hp, maxHp, label, subLabel, side, isActive }: HpBarProps
     return () => clearInterval(interval);
   }, [hp, displayHp]);
 
-  const sideColor = side === "left" ? "var(--hp-full)" : "var(--hp-low)";
+  const hpValue = `${Math.round(displayHp)}HP`;
+  const nameStyle: React.CSSProperties = {
+    fontSize: "clamp(14px, 2.5vw, 24px)",
+    lineHeight: 1.3,
+    color: isActive ? "var(--text-primary)" : "var(--text-secondary)",
+  };
+  const hpStyle: React.CSSProperties = {
+    fontSize: "clamp(14px, 2.5vw, 24px)",
+    lineHeight: 1.3,
+    color: color,
+  };
 
   return (
-    <div
-      className={`flex-1 space-y-1.5 ${side === "right" ? "text-right" : ""}`}
-    >
-      <div className={`flex items-baseline gap-2 ${side === "right" ? "justify-end" : ""}`}>
-        <span
-          className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider"
-          style={{
-            textShadow: isActive ? `0 0 10px ${sideColor}` : "none",
-          }}
-        >
-          {label}
-        </span>
-        {subLabel && isActive && (
-          <span className="text-xs text-[var(--accent)] font-medium neon-glow-sm">
-            ▶ {subLabel}
-          </span>
-        )}
-        {subLabel && !isActive && (
-          <span className="text-xs text-[var(--text-muted)]">
-            {subLabel}
-          </span>
-        )}
-      </div>
+    <div className="flex-1" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+      {/* Label row — order swapped per side */}
+      {side === "left" ? (
+        <div className="flex items-baseline" style={{ gap: "12px" }}>
+          <span className="font-display" style={nameStyle}>{label}</span>
+          <span className="font-display tabular-nums" style={hpStyle}>{hpValue}</span>
+          {subLabel && (
+            <span className="text-caption" style={{ color: "var(--text-muted)" }}>{subLabel}</span>
+          )}
+        </div>
+      ) : (
+        <div className="flex items-baseline justify-end" style={{ gap: "12px" }}>
+          {subLabel && (
+            <span className="text-caption" style={{ color: "var(--text-muted)" }}>{subLabel}</span>
+          )}
+          <span className="font-display tabular-nums" style={hpStyle}>{hpValue}</span>
+          <span className="font-display" style={nameStyle}>{label}</span>
+        </div>
+      )}
 
-      {/* HP Bar Container - metallic chrome style */}
+      {/* HP bar — flat, no border-radius */}
       <div
-        className="relative h-7 rounded-md overflow-hidden"
+        className="relative overflow-hidden"
         style={{
-          background: "linear-gradient(180deg, #1a1a2e 0%, #12121a 50%, #1a1a2e 100%)",
-          border: "1px solid var(--border-default)",
-          boxShadow: "inset 0 2px 4px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.05)",
+          height: "40px",
+          background: "var(--bg-surface)",
         }}
       >
-        {/* HP Fill */}
         <div
-          className={`absolute inset-y-0 h-full transition-all duration-500 ease-out rounded-sm ${isCritical ? "hp-critical-pulse" : ""}`}
+          className={`absolute inset-y-0 h-full transition-all duration-500 ease-out ${isCritical ? "hp-critical-pulse" : ""}`}
           style={{
             width: `${percent}%`,
-            background: gradient,
+            background: color,
             [side === "right" ? "right" : "left"]: 0,
-            boxShadow: `0 0 15px ${color}, inset 0 1px 0 rgba(255,255,255,0.3)`,
           }}
-        >
-          {/* Shine effect on HP bar */}
-          <div
-            className="absolute inset-0 opacity-30"
-            style={{
-              background: "linear-gradient(180deg, rgba(255,255,255,0.4) 0%, transparent 50%, rgba(0,0,0,0.2) 100%)",
-            }}
-          />
-        </div>
-
-        {/* HP Text */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span
-            className="font-retro text-base text-white tabular-nums"
-            style={{
-              textShadow: "0 1px 2px rgba(0,0,0,0.8), 0 0 10px rgba(0,0,0,0.5)",
-            }}
-          >
-            {Math.round(displayHp)} / {maxHp}
-          </span>
-        </div>
+        />
       </div>
     </div>
   );

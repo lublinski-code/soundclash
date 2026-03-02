@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useGameStore } from "@/store/gameStore";
 import { useSpotifyStore } from "@/store/spotifyStore";
 import { HpHud } from "@/components/game/HpHud";
-import { VsSplash } from "@/components/game/VsSplash";
 import { SnippetPlayer } from "@/components/game/SnippetPlayer";
 import { GuessInput } from "@/components/game/GuessInput";
 import { DamageOverlay } from "@/components/game/DamageOverlay";
@@ -30,43 +29,43 @@ export default function GamePage() {
   const { isPlayerReady, deviceId } = useSpotifyStore();
   const [isPlaying, setIsPlaying] = useState(false);
   const [snippetPlayed, setSnippetPlayed] = useState(false);
-  const pendingAutoPlayRef = useRef(false);
   const snippetStartOffsetRef = useRef<number | null>(null);
 
-  // Redirect if no game in progress
+  // Redirect to setup if not in an active game.
+  // The timeout prevents a race where the effect fires before Zustand state
+  // propagates after a client-side navigation from the setup page.
   useEffect(() => {
-    if (phase === "LOBBY" || songPool.length === 0) {
-      router.replace("/setup");
-    }
+    const timer = setTimeout(() => {
+      if (phase === "LOBBY" || songPool.length === 0) {
+        router.replace("/setup");
+      }
+    }, 150);
+    return () => clearTimeout(timer);
   }, [phase, songPool, router]);
+
+  // Skip VS_SCREEN phase directly to SNIPPET
+  useEffect(() => {
+    if (phase === "VS_SCREEN") {
+      dispatch({ type: "START_SNIPPET" });
+    }
+  }, [phase, dispatch]);
 
   const currentSong = songPool[currentSongIndex];
   const lastResult = roundResults[roundResults.length - 1];
 
-  // ── VS Screen Complete ──
-  const handleVsComplete = useCallback(() => {
-    dispatch({ type: "START_SNIPPET" });
-  }, [dispatch]);
-
-  // ── Play Snippet ──
   const handlePlaySnippet = useCallback(async () => {
     if (!currentSong || !isPlayerReady) return;
 
     const durationConfig = config.snippetDurations[currentSnippetLevel] ?? 1;
     const songDurationMs = currentSong.duration_ms;
-
-    // -1 means full song
     const isFullSong = durationConfig === -1;
     const snippetDurationMs = isFullSong ? songDurationMs : durationConfig * 1000;
 
-    // Calculate random start offset (only on first play, not replay)
-    // For full song, start from beginning
     if (snippetStartOffsetRef.current === null) {
       if (isFullSong) {
         snippetStartOffsetRef.current = 0;
       } else {
-        // Pick random position: avoid last (snippetDuration + 5s buffer) and first 2s
-        const minOffset = 2000; // Skip first 2s
+        const minOffset = 2000;
         const maxOffset = Math.max(minOffset, songDurationMs - snippetDurationMs - 5000);
         snippetStartOffsetRef.current =
           minOffset + Math.floor(Math.random() * (maxOffset - minOffset));
@@ -80,44 +79,44 @@ export default function GamePage() {
       await playSnippet(
         currentSong.uri,
         snippetDurationMs,
-        () => setIsPlaying(false),
+        () => {
+          setIsPlaying(false);
+        },
         snippetStartOffsetRef.current
       );
     } catch (err) {
-      console.error("Playback error:", err);
+      console.error("[Game] Playback error:", err);
       setIsPlaying(false);
     }
   }, [currentSong, isPlayerReady, config.snippetDurations, currentSnippetLevel]);
 
-  // ── Replay current snippet ──
   const handleReplay = useCallback(async () => {
-    if (!currentSong || !isPlayerReady || isPlaying) return;
+    if (!currentSong || !isPlayerReady) return;
+    if (isPlaying) {
+      await stopSnippet();
+      setIsPlaying(false);
+      await new Promise((r) => setTimeout(r, 100));
+    }
     await handlePlaySnippet();
   }, [currentSong, isPlayerReady, isPlaying, handlePlaySnippet]);
 
-  // ── Submit Guess ──
   const handleGuess = useCallback(
     async (trackId: string, trackName: string, artistNames: string[]) => {
       await stopSnippet();
       setIsPlaying(false);
       setSnippetPlayed(false);
-      // Set pending auto-play in case wrong guess advances to next snippet
-      pendingAutoPlayRef.current = true;
       dispatch({ type: "SUBMIT_GUESS", trackId, trackName, artistNames });
     },
     [dispatch]
   );
 
-  // ── Skip (hear more) -- auto-plays next snippet ──
   const handleSkip = useCallback(async () => {
     await stopSnippet();
     setIsPlaying(false);
     setSnippetPlayed(false);
-    pendingAutoPlayRef.current = true;
     dispatch({ type: "SKIP_GUESS" });
   }, [dispatch]);
 
-  // ── Give Up -- max damage, reveal song ──
   const handleGiveUp = useCallback(async () => {
     await stopSnippet();
     setIsPlaying(false);
@@ -125,12 +124,10 @@ export default function GamePage() {
     dispatch({ type: "GIVE_UP" });
   }, [dispatch]);
 
-  // ── Damage Animation Complete ──
   const handleDamageComplete = useCallback(() => {
     dispatch({ type: "SHOW_ALBUM" });
   }, [dispatch]);
 
-  // ── Album Reveal: play full song ──
   const handleAlbumPlay = useCallback(async () => {
     if (!currentSong || !deviceId) return;
     try {
@@ -149,9 +146,7 @@ export default function GamePage() {
     }
   }, [deviceId]);
 
-  // ── Album Reveal Complete ──
   const handleAlbumComplete = useCallback(async () => {
-    // Pause any playing song before advancing
     if (deviceId) {
       try {
         await pausePlayback(deviceId);
@@ -162,7 +157,6 @@ export default function GamePage() {
     dispatch({ type: "END_ROUND" });
   }, [dispatch, deviceId]);
 
-  // ── New Game (restart) ──
   const handleNewGame = useCallback(async () => {
     await stopSnippet();
     if (deviceId) {
@@ -176,40 +170,35 @@ export default function GamePage() {
     router.push("/setup");
   }, [dispatch, router, deviceId]);
 
-  // Reset snippet state on phase change or snippet level change
   useEffect(() => {
     if (phase === "SNIPPET") {
       setSnippetPlayed(false);
       setIsPlaying(false);
-      // Reset random offset when snippet level changes (new snippet = new random position)
       snippetStartOffsetRef.current = null;
     }
   }, [phase, currentSnippetLevel]);
 
-  // Auto-play after skip: when snippet level changes and we have a pending auto-play
   useEffect(() => {
-    if (pendingAutoPlayRef.current && phase === "SNIPPET") {
-      pendingAutoPlayRef.current = false;
-      // Small delay to let state settle
+    if (phase === "SNIPPET" && !isPlaying) {
       const timer = setTimeout(() => {
         handlePlaySnippet();
-      }, 200);
+      }, 300);
       return () => clearTimeout(timer);
     }
-  }, [phase, currentSnippetLevel, handlePlaySnippet]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, currentSnippetLevel]);
 
-  // ── Render by Phase ──
   if (!currentSong && phase !== "KO") {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <p className="text-[var(--text-muted)]">No more songs in the pool!</p>
+        <div className="text-center" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <p style={{ color: "var(--text-muted)" }}>No more songs in the pool!</p>
           <button
             onClick={() => {
               dispatch({ type: "RESET" });
               router.push("/setup");
             }}
-            className="px-6 py-2 rounded-lg bg-[var(--accent)] text-white font-bold"
+            className="btn-primary cursor-pointer"
           >
             Back to Setup
           </button>
@@ -218,72 +207,128 @@ export default function GamePage() {
     );
   }
 
-  return (
-    <div className="flex-1 flex flex-col">
-      {/* HP HUD — always visible during game (except KO) */}
-      {phase !== "KO" && <HpHud />}
+  const albumArtUrl = currentSong?.album?.images?.[0]?.url;
+  const canSkip = currentSnippetLevel < config.snippetDurations.length - 1;
 
-      {/* Spotify warning + New Game button */}
-      {phase !== "KO" && (
-        <div className="bg-[var(--bg-secondary)] border-b border-[var(--border-subtle)]">
-          <div className="max-w-3xl mx-auto flex items-center justify-between px-6 py-2">
-            <p className="text-[11px] text-[var(--text-muted)] flex-1">
-              ⚠ Don&apos;t check your Spotify app — the song is visible there!
-            </p>
-            <button
-              onClick={handleNewGame}
-              className="btn-muted text-xs py-1 px-3"
-            >
-              ✕ End Game
-            </button>
-          </div>
-        </div>
+  const playerTurnLabel =
+    teams[0].members.length === 1 && teams[1].members.length === 1
+      ? `${teams[currentTeamIndex].members[0]?.name ?? "Player"}'s turn`
+      : `${teams[currentTeamIndex].name}'s turn`;
+
+  return (
+    <div className="flex-1 flex flex-col relative" style={{ minHeight: "100dvh" }}>
+      {/* Blurred album art background */}
+      {albumArtUrl && (phase === "SNIPPET" || phase === "GUESS") && (
+        <div
+          className="fixed inset-0 z-0 pointer-events-none"
+          style={{
+            backgroundImage: `url(${albumArtUrl})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            filter: "blur(60px) brightness(0.18) saturate(1.4)",
+            transform: "scale(1.2)",
+          }}
+          aria-hidden="true"
+        />
       )}
 
-      {/* VS Splash */}
-      {phase === "VS_SCREEN" && <VsSplash onComplete={handleVsComplete} />}
+      {/* End Game button — absolute top-right */}
+      {phase !== "KO" && (
+        <button
+          onClick={handleNewGame}
+          className="absolute z-20 flex items-center cursor-pointer transition-colors"
+          style={{
+            top: "16px",
+            right: "24px",
+            gap: "8px",
+            background: "transparent",
+            border: "none",
+            color: "var(--text-muted)",
+            fontSize: "14px",
+            fontWeight: 500,
+            letterSpacing: "0.02em",
+            padding: "8px 12px",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")}
+          onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
+          aria-label="End game"
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+          End Game
+        </button>
+      )}
+
+      {/* HP HUD */}
+      {phase !== "KO" && <HpHud />}
 
       {/* Snippet + Guess Phase */}
       {(phase === "SNIPPET" || phase === "GUESS") && (
-        <div className="flex-1 flex flex-col items-center justify-center px-6 py-10 gap-10">
-          <div className="w-full max-w-2xl mx-auto flex flex-col items-center gap-10">
-            {/* Active player indicator */}
-            <div className="text-center">
-              {teams[0].members.length === 1 && teams[1].members.length === 1 ? (
-                <p className="text-lg font-bold text-[var(--text-primary)]">
-                  {teams[currentTeamIndex].members[0]?.name}&apos;s turn
-                </p>
-              ) : (
-                <>
-                  <p className="text-xs uppercase tracking-widest text-[var(--text-muted)]">
-                    {teams[currentTeamIndex].name}&apos;s turn
-                  </p>
-                  <p className="text-lg font-bold text-[var(--text-primary)]">
-                    {teams[currentTeamIndex].members[teams[currentTeamIndex].activeIndex]?.name}
-                  </p>
-                </>
-              )}
-            </div>
+        <div
+          className="flex-1 flex flex-col items-center relative z-10"
+          style={{ padding: "0 24px 32px" }}
+        >
+          {/* Player turn label */}
+          <div
+            className="text-center"
+            style={{ paddingTop: "clamp(24px, 4vh, 48px)", marginBottom: "clamp(16px, 3vh, 32px)" }}
+          >
+            <p
+              className="font-display"
+              style={{
+                fontSize: "clamp(18px, 3vw, 24px)",
+                lineHeight: 1.3,
+                color: "var(--text-primary)",
+              }}
+            >
+              {playerTurnLabel}
+            </p>
+          </div>
 
+          {/* Timer (with album art bloom behind it) */}
+          <div className="relative flex items-center justify-center" style={{ marginBottom: "clamp(16px, 3vh, 28px)" }}>
+            {albumArtUrl && (
+              <div
+                className="absolute pointer-events-none"
+                style={{
+                  width: "220px",
+                  height: "220px",
+                  backgroundImage: `url(${albumArtUrl})`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                  borderRadius: "50%",
+                  filter: "blur(40px) brightness(0.5) saturate(1.6)",
+                  transform: "scale(1.3)",
+                  opacity: 0.8,
+                }}
+                aria-hidden="true"
+              />
+            )}
             <SnippetPlayer
               isPlaying={isPlaying}
-              onPlay={handlePlaySnippet}
+              onPlay={handleReplay}
               onSnippetEnd={() => setIsPlaying(false)}
             />
-
-            {/* Show guess input after snippet has played at least once */}
-            {snippetPlayed && !isPlaying && (
-              <div className="fade-in w-full">
-                <GuessInput
-                  onGuess={handleGuess}
-                  onSkip={handleSkip}
-                  onGiveUp={handleGiveUp}
-                  onReplay={handleReplay}
-                  disabled={isPlaying}
-                />
-              </div>
-            )}
           </div>
+
+          {/* Input area — shown after first snippet plays */}
+          {snippetPlayed ? (
+            <div className="fade-in w-full flex flex-col items-center" style={{ gap: "0", maxWidth: "640px" }}>
+              <GuessInput
+                onGuess={handleGuess}
+                onGiveUp={handleGiveUp}
+                onSkip={canSkip ? handleSkip : undefined}
+                canSkip={canSkip}
+                disabled={false}
+              />
+            </div>
+          ) : (
+            <p className="text-body-2" style={{ color: "var(--text-muted)" }}>
+              Listen carefully and guess the song
+            </p>
+          )}
         </div>
       )}
 
@@ -292,6 +337,7 @@ export default function GamePage() {
         <div className="flex-1">
           <DamageOverlay
             damage={lastResult.damage}
+            artistOnly={lastResult.artistOnly}
             onComplete={handleDamageComplete}
           />
         </div>
