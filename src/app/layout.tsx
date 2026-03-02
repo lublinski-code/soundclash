@@ -12,12 +12,12 @@ const spaceGrotesk = Space_Grotesk({
 const underfind = localFont({
   src: [
     {
-      path: "../../public/fonts/undefined-medium.woff2",
+      path: "../fonts/undefined-medium.woff2",
       weight: "500",
       style: "normal",
     },
     {
-      path: "../../public/fonts/undefined-medium.woff",
+      path: "../fonts/undefined-medium.woff",
       weight: "500",
       style: "normal",
     },
