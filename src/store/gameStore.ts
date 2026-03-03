@@ -4,7 +4,8 @@ import { create } from "zustand";
 import type { Team, GameConfig, GamePhase, RoundResult, SpotifyTrack } from "@/lib/game/types";
 import {
   DEFAULT_STARTING_HP,
-  DEFAULT_DAMAGE_TABLE,
+  DEFAULT_CORRECT_DAMAGE_TABLE,
+  DEFAULT_WRONG_SELF_DAMAGE,
   DEFAULT_SNIPPET_DURATIONS,
 } from "@/lib/game/constants";
 import { gameReducer, type GameAction } from "@/lib/game/engine";
@@ -46,7 +47,8 @@ const defaultTeams: [Team, Team] = [
 
 const defaultConfig: GameConfig = {
   startingHp: DEFAULT_STARTING_HP,
-  damageTable: [...DEFAULT_DAMAGE_TABLE],
+  correctDamageTable: [...DEFAULT_CORRECT_DAMAGE_TABLE],
+  wrongSelfDamage: DEFAULT_WRONG_SELF_DAMAGE,
   snippetDurations: [...DEFAULT_SNIPPET_DURATIONS],
   genres: [],
   eras: [],

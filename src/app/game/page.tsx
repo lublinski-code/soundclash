@@ -308,7 +308,13 @@ export default function GamePage() {
         <div className="flex-1">
           <DamageOverlay
             damage={lastResult.damage}
+            correct={lastResult.correct}
             artistOnly={lastResult.artistOnly}
+            targetName={
+              lastResult.targetTeamId === lastResult.teamId
+                ? "You"
+                : (teams.find((t) => t.id === lastResult.targetTeamId)?.name ?? "Opponent")
+            }
             onComplete={handleDamageComplete}
           />
         </div>

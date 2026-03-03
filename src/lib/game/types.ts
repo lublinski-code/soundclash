@@ -15,7 +15,8 @@ export type Team = {
 
 export type GameConfig = {
   startingHp: number;
-  damageTable: number[]; // damage per snippet level index, last entry = wrong/skip
+  correctDamageTable: number[]; // opponent damage per snippet level (correct guess)
+  wrongSelfDamage: number; // flat self-damage for miss / forfeit
   snippetDurations: number[]; // seconds per level
   genres: string[];
   eras: string[];
@@ -24,7 +25,8 @@ export type GameConfig = {
 
 export type RoundResult = {
   roundNumber: number;
-  teamId: string;
+  teamId: string; // the guessing team
+  targetTeamId: string; // team that took the damage
   playerId: string;
   trackId: string;
   trackName: string;
@@ -34,7 +36,7 @@ export type RoundResult = {
   correct: boolean;
   artistOnly: boolean;
   damage: number;
-  hpAfter: number;
+  hpAfter: number; // target team's HP after damage
 };
 
 export type GamePhase =

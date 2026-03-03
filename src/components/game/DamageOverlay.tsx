@@ -5,7 +5,9 @@ import { getDamageLabel } from "@/lib/game/damage";
 
 type DamageOverlayProps = {
   damage: number;
+  correct: boolean;
   artistOnly?: boolean;
+  targetName: string;
   onComplete: () => void;
 };
 
@@ -25,8 +27,8 @@ function generateConfetti(count: number) {
   }));
 }
 
-export function DamageOverlay({ damage, artistOnly = false, onComplete }: DamageOverlayProps) {
-  const label = getDamageLabel(damage, artistOnly);
+export function DamageOverlay({ damage, correct, artistOnly = false, targetName, onComplete }: DamageOverlayProps) {
+  const label = getDamageLabel(damage, correct, artistOnly);
   const isPositive = label === "PERFECT" || label === "HIT" || label === "CLOSE";
 
   const confetti = useMemo(
@@ -50,6 +52,10 @@ export function DamageOverlay({ damage, artistOnly = false, onComplete }: Damage
       : label === "HIT" ? "var(--flash-hit)"
         : label === "CLOSE" ? "var(--warning)"
           : "var(--flash-miss)";
+
+  const hpLine = isPositive
+    ? `${targetName} takes -${damage} HP`
+    : `You take -${damage} HP`;
 
   return (
     <>
@@ -116,44 +122,30 @@ export function DamageOverlay({ damage, artistOnly = false, onComplete }: Damage
             </div>
           )}
 
-          {label === "PERFECT" && (
-            <div
-              className="font-display"
-              style={{
-                marginTop: "12px",
-                fontSize: "clamp(16px, 3vw, 24px)",
-                color: "var(--flash-perfect)",
-              }}
-            >
-              NO DAMAGE!
-            </div>
-          )}
+          <div
+            className="text-body-1"
+            style={{
+              marginTop: "12px",
+              color: textColor,
+              fontWeight: 500,
+            }}
+          >
+            {label === "PERFECT" && "KNOCKOUT BLOW!"}
+            {label === "HIT" && "NICE GUESS!"}
+            {label === "CLOSE" && "RIGHT ARTIST!"}
+            {label === "MISS" && "WRONG!"}
+          </div>
 
-          {label === "HIT" && (
-            <div
-              className="text-body-1"
-              style={{
-                marginTop: "12px",
-                color: "var(--flash-hit)",
-                fontWeight: 500,
-              }}
-            >
-              NICE GUESS!
-            </div>
-          )}
-
-          {label === "CLOSE" && (
-            <div
-              className="text-body-1"
-              style={{
-                marginTop: "12px",
-                color: "var(--warning)",
-                fontWeight: 500,
-              }}
-            >
-              RIGHT ARTIST!
-            </div>
-          )}
+          <div
+            className="text-body-2"
+            style={{
+              marginTop: "8px",
+              color: "var(--text-muted)",
+              fontWeight: 400,
+            }}
+          >
+            {hpLine}
+          </div>
         </div>
       </div>
     </>

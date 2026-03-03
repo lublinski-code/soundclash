@@ -7,11 +7,16 @@
 export const DEFAULT_SNIPPET_DURATIONS = [1, 3, 6, 12, 20, 30];
 
 /**
- * Damage table indexed by snippet level.
- * Index 0 = correct at first snippet (1s) = 0 damage (PERFECT)
- * Last index = wrong guess / skipped all snippets
+ * Damage dealt to the OPPONENT when the guesser is correct.
+ * Indexed by snippet level — faster guesses deal more damage.
  */
-export const DEFAULT_DAMAGE_TABLE = [0, 5, 10, 15, 20, 25, 30];
+export const DEFAULT_CORRECT_DAMAGE_TABLE = [25, 20, 15, 10, 5, 3];
+
+/** Flat self-damage when the guesser is wrong, skips all snippets, or forfeits. */
+export const DEFAULT_WRONG_SELF_DAMAGE = 15;
+
+/** Damage dealt to the OPPONENT when the guesser names the right artist but wrong song. */
+export const ARTIST_ONLY_DAMAGE = 5;
 
 /** Default starting HP per team */
 export const DEFAULT_STARTING_HP = 100;
@@ -74,13 +79,6 @@ export const MARKETS = [
   { code: "PL", label: "Poland" },
   { code: "ZA", label: "South Africa" },
 ] as const;
-
-/** Damage result labels */
-export const DAMAGE_LABELS: Record<string, string> = {
-  PERFECT: "PERFECT",
-  HIT: "HIT",
-  MISS: "MISS",
-};
 
 /** Pick N random genres from the available list */
 export function getRandomGenres(count = 1): string[] {

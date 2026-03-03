@@ -27,59 +27,37 @@ export type GameAction =
   | { type: "END_ROUND" }
   | { type: "RESET" };
 
-/**
- * Normalize a song title for fuzzy matching.
- * Removes common edition suffixes, remaster tags, parenthetical info, etc.
- */
 function normalizeTitle(title: string): string {
   return title
     .toLowerCase()
-    // Remove common suffixes in parentheses/brackets
     .replace(/\s*[\(\[].*?(remaster|deluxe|edition|version|remix|live|acoustic|radio|single|extended|original|bonus|demo|anniversary|mono|stereo).*?[\)\]]/gi, "")
-    // Remove trailing " - " variants (e.g., "Song - Remastered 2021")
     .replace(/\s*-\s*(remaster|deluxe|edition|version|remix|live|acoustic|radio|single|extended|original|bonus|demo|anniversary|\d{4}).*$/gi, "")
-    // Remove "feat." and featured artists from comparison
     .replace(/\s*[\(\[]?\s*feat\.?\s+[^\)\]]+[\)\]]?/gi, "")
-    // Normalize whitespace and punctuation
     .replace(/[''`]/g, "'")
     .replace(/[""]/g, '"')
     .replace(/\s+/g, " ")
     .trim();
 }
 
-/**
- * Check if the guessed track matches the target track.
- * Uses fuzzy matching to handle different editions (remaster, deluxe, live, etc.)
- */
 function isTrackMatch(
   guessId: string,
   guessName: string,
   guessArtists: string[],
   target: SpotifyTrack
 ): boolean {
-  // Exact ID match is always correct
   if (guessId === target.id) return true;
 
-  // Fuzzy match: compare normalized titles and check artist overlap
   const normalizedGuess = normalizeTitle(guessName);
   const normalizedTarget = normalizeTitle(target.name);
-
-  // Titles must match (after normalization)
   if (normalizedGuess !== normalizedTarget) return false;
 
-  // At least one artist must match (handles "feat." variations)
   const targetArtists = target.artists.map((a) => a.name.toLowerCase());
   const guessArtistsLower = guessArtists.map((a) => a.toLowerCase());
-
   return guessArtistsLower.some((g) =>
     targetArtists.some((t) => g.includes(t) || t.includes(g))
   );
 }
 
-/**
- * Check if the guessed track's artist matches the target track's artist,
- * even though the song title is wrong. Used for partial credit.
- */
 function isArtistMatch(guessArtists: string[], target: SpotifyTrack): boolean {
   const targetArtists = target.artists.map((a) => a.name.toLowerCase());
   const guessLower = guessArtists.map((a) => a.toLowerCase());
@@ -89,8 +67,71 @@ function isArtistMatch(guessArtists: string[], target: SpotifyTrack): boolean {
 }
 
 /**
- * Pure game state reducer. All game logic lives here.
+ * Apply damage to teams and build a RoundResult.
+ * Correct / artist-only → opponent takes damage.
+ * Wrong / forfeit → guesser takes damage.
  */
+function applyDamage(
+  state: GameState,
+  correct: boolean,
+  artistOnly: boolean,
+  currentSong: SpotifyTrack
+): GameState {
+  const teamIdx = state.currentTeamIndex;
+  const opponentIdx = (teamIdx === 0 ? 1 : 0) as 0 | 1;
+
+  let damage: number;
+  let targetIdx: 0 | 1;
+
+  if (correct) {
+    const { damage: d } = calculateDamage(
+      state.currentSnippetLevel,
+      true,
+      state.config.correctDamageTable,
+      state.config.wrongSelfDamage
+    );
+    damage = d;
+    targetIdx = opponentIdx;
+  } else if (artistOnly) {
+    damage = ARTIST_ONLY_DAMAGE;
+    targetIdx = opponentIdx;
+  } else {
+    damage = state.config.wrongSelfDamage;
+    targetIdx = teamIdx;
+  }
+
+  const targetTeam = state.teams[targetIdx];
+  const newHp = Math.max(0, targetTeam.hp - damage);
+  const newTeams = [...state.teams] as [Team, Team];
+  newTeams[targetIdx] = { ...targetTeam, hp: newHp };
+
+  const guessingTeam = state.teams[teamIdx];
+  const activePlayer = guessingTeam.members[guessingTeam.activeIndex];
+
+  const result: RoundResult = {
+    roundNumber: state.roundNumber,
+    teamId: guessingTeam.id,
+    targetTeamId: state.teams[targetIdx].id,
+    playerId: activePlayer?.id ?? "",
+    trackId: currentSong.id,
+    trackName: currentSong.name,
+    artistName: currentSong.artists.map((a) => a.name).join(", "),
+    albumArt: currentSong.album.images[0]?.url ?? "",
+    snippetLevel: state.currentSnippetLevel,
+    correct,
+    artistOnly,
+    damage,
+    hpAfter: newHp,
+  };
+
+  return {
+    ...state,
+    phase: "DAMAGE",
+    teams: newTeams,
+    roundResults: [...state.roundResults, result],
+  };
+}
+
 export function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case "START_GAME": {
@@ -116,19 +157,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case "START_SNIPPET": {
-      return {
-        ...state,
-        phase: "SNIPPET",
-        currentSnippetLevel: 0,
-      };
+      return { ...state, phase: "SNIPPET", currentSnippetLevel: 0 };
     }
 
     case "NEXT_SNIPPET": {
-      return {
-        ...state,
-        phase: "SNIPPET",
-        currentSnippetLevel: state.currentSnippetLevel + 1,
-      };
+      return { ...state, phase: "SNIPPET", currentSnippetLevel: state.currentSnippetLevel + 1 };
     }
 
     case "SUBMIT_GUESS": {
@@ -141,7 +174,6 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         action.artistNames,
         currentSong
       );
-
       const artistMatch = !correct && isArtistMatch(action.artistNames, currentSong);
       const maxLevel = state.config.snippetDurations.length - 1;
 
@@ -163,45 +195,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         };
       }
 
-      // At max level: artist match gets partial credit, full wrong gets max damage
-      const damage = artistMatch
-        ? ARTIST_ONLY_DAMAGE
-        : calculateDamage(state.currentSnippetLevel, correct, state.config.damageTable);
-
-      const teamIdx = state.currentTeamIndex;
-      const team = state.teams[teamIdx];
-      const newHp = Math.max(0, team.hp - damage);
-
-      const newTeams = [...state.teams] as [Team, Team];
-      newTeams[teamIdx] = { ...team, hp: newHp };
-
-      const activePlayer = team.members[team.activeIndex];
-
-      const result: RoundResult = {
-        roundNumber: state.roundNumber,
-        teamId: team.id,
-        playerId: activePlayer?.id ?? "",
-        trackId: currentSong.id,
-        trackName: currentSong.name,
-        artistName: currentSong.artists.map((a) => a.name).join(", "),
-        albumArt: currentSong.album.images[0]?.url ?? "",
-        snippetLevel: state.currentSnippetLevel,
-        correct,
-        artistOnly: artistMatch,
-        damage,
-        hpAfter: newHp,
-      };
-
-      return {
-        ...state,
-        phase: "DAMAGE",
-        teams: newTeams,
-        roundResults: [...state.roundResults, result],
-      };
+      return applyDamage(state, correct, artistMatch, currentSong);
     }
 
     case "SKIP_GUESS": {
-      // Check if there are more snippets to play
       const maxLevel = state.config.snippetDurations.length - 1;
       if (state.currentSnippetLevel < maxLevel) {
         return {
@@ -211,86 +208,17 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         };
       }
 
-      // No more snippets — treat as wrong answer
       const currentSong = state.songPool[state.currentSongIndex];
       if (!currentSong) return state;
 
-      const damage = calculateDamage(
-        state.currentSnippetLevel,
-        false,
-        state.config.damageTable
-      );
-
-      const teamIdx = state.currentTeamIndex;
-      const team = state.teams[teamIdx];
-      const newHp = Math.max(0, team.hp - damage);
-
-      const newTeams = [...state.teams] as [Team, Team];
-      newTeams[teamIdx] = { ...team, hp: newHp };
-
-      const activePlayer = team.members[team.activeIndex];
-
-      const result: RoundResult = {
-        roundNumber: state.roundNumber,
-        teamId: team.id,
-        playerId: activePlayer?.id ?? "",
-        trackId: currentSong.id,
-        trackName: currentSong.name,
-        artistName: currentSong.artists.map((a) => a.name).join(", "),
-        albumArt: currentSong.album.images[0]?.url ?? "",
-        snippetLevel: state.currentSnippetLevel,
-        correct: false,
-        artistOnly: false,
-        damage,
-        hpAfter: newHp,
-      };
-
-      return {
-        ...state,
-        phase: "DAMAGE",
-        teams: newTeams,
-        roundResults: [...state.roundResults, result],
-      };
+      return applyDamage(state, false, false, currentSong);
     }
 
     case "GIVE_UP": {
       const currentSong = state.songPool[state.currentSongIndex];
       if (!currentSong) return state;
 
-      // Always apply max damage (last entry in damage table = 30)
-      const maxDamage =
-        state.config.damageTable[state.config.damageTable.length - 1] ?? 30;
-
-      const teamIdx = state.currentTeamIndex;
-      const team = state.teams[teamIdx];
-      const newHp = Math.max(0, team.hp - maxDamage);
-
-      const newTeams = [...state.teams] as [Team, Team];
-      newTeams[teamIdx] = { ...team, hp: newHp };
-
-      const activePlayer = team.members[team.activeIndex];
-
-      const result: RoundResult = {
-        roundNumber: state.roundNumber,
-        teamId: team.id,
-        playerId: activePlayer?.id ?? "",
-        trackId: currentSong.id,
-        trackName: currentSong.name,
-        artistName: currentSong.artists.map((a) => a.name).join(", "),
-        albumArt: currentSong.album.images[0]?.url ?? "",
-        snippetLevel: state.currentSnippetLevel,
-        correct: false,
-        artistOnly: false,
-        damage: maxDamage,
-        hpAfter: newHp,
-      };
-
-      return {
-        ...state,
-        phase: "DAMAGE",
-        teams: newTeams,
-        roundResults: [...state.roundResults, result],
-      };
+      return applyDamage(state, false, false, currentSong);
     }
 
     case "SHOW_ALBUM": {
@@ -298,29 +226,28 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case "END_ROUND": {
-      const teamIdx = state.currentTeamIndex;
-      const team = state.teams[teamIdx];
-
-      // Check for KO
-      if (team.hp <= 0) {
-        const winnerIdx = teamIdx === 0 ? 1 : 0;
-        return {
-          ...state,
-          phase: "KO",
-          winner: state.teams[winnerIdx],
-        };
+      // Check for KO on either team (correct hits opponent, wrong hits self)
+      for (let i = 0; i < 2; i++) {
+        if (state.teams[i].hp <= 0) {
+          const winnerIdx = i === 0 ? 1 : 0;
+          return {
+            ...state,
+            phase: "KO",
+            winner: state.teams[winnerIdx],
+          };
+        }
       }
+
+      const teamIdx = state.currentTeamIndex;
 
       // Rotate active member within the current team
       const newTeams = [...state.teams] as [Team, Team];
       const currentTeam = newTeams[teamIdx];
       newTeams[teamIdx] = {
         ...currentTeam,
-        activeIndex:
-          (currentTeam.activeIndex + 1) % currentTeam.members.length,
+        activeIndex: (currentTeam.activeIndex + 1) % currentTeam.members.length,
       };
 
-      // Switch to other team, advance song
       const nextTeamIndex = (teamIdx === 0 ? 1 : 0) as 0 | 1;
 
       return {

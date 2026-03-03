@@ -108,7 +108,7 @@ export function KoScreen() {
                   className="font-display"
                   style={{ fontSize: "32px", lineHeight: 1.2, color: "var(--gold)" }}
                 >
-                  {roundResults.filter((r) => r.damage === 0).length}
+                  {roundResults.filter((r) => r.correct && r.snippetLevel === 0).length}
                 </div>
                 <div className="text-caption" style={{ color: "var(--text-muted)", marginTop: "4px" }}>
                   Perfect
@@ -127,7 +127,9 @@ export function KoScreen() {
               }}
             >
               {roundResults.map((result, i) => {
-                const team = teams.find((t) => t.id === result.teamId);
+                const guessingTeam = teams.find((t) => t.id === result.teamId);
+                const targetTeam = teams.find((t) => t.id === result.targetTeamId);
+                const hitOpponent = result.targetTeamId !== result.teamId;
                 const track = songPool.find((t) => t.id === result.trackId);
                 return (
                   <div
@@ -171,22 +173,19 @@ export function KoScreen() {
                         </a>
                       )}
                       <span className="text-caption" style={{ color: "var(--text-muted)" }}>
-                        {team?.name}
+                        {guessingTeam?.name}
                       </span>
                       <span
                         className="text-body-2"
                         style={{
                           fontWeight: 500,
-                          color:
-                            result.damage === 0
-                              ? "var(--gold)"
-                              : result.correct
-                              ? "var(--success)"
-                              : "var(--destructive)",
+                          color: hitOpponent
+                            ? "var(--success)"
+                            : "var(--destructive)",
                         }}
                       >
-                        {result.damage === 0
-                          ? "0 HP"
+                        {hitOpponent
+                          ? `→ ${targetTeam?.name} -${result.damage} HP`
                           : `-${result.damage} HP`}
                       </span>
                     </div>

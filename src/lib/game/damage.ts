@@ -1,24 +1,35 @@
-import { DEFAULT_DAMAGE_TABLE } from "./constants";
+import { DEFAULT_CORRECT_DAMAGE_TABLE, DEFAULT_WRONG_SELF_DAMAGE, ARTIST_ONLY_DAMAGE } from "./constants";
 
-/** Fixed damage when the player knows the artist but not the song */
-export const ARTIST_ONLY_DAMAGE = 15;
+export { ARTIST_ONLY_DAMAGE };
 
+export type DamageResult = {
+  damage: number;
+  /** true = guesser takes the damage; false = opponent takes the damage */
+  targetSelf: boolean;
+};
+
+/**
+ * Correct guess → opponent takes damage (higher for faster guesses).
+ * Wrong / forfeit → guesser takes flat self-damage.
+ */
 export function calculateDamage(
   snippetLevel: number,
   correct: boolean,
-  damageTable: number[] = DEFAULT_DAMAGE_TABLE
-): number {
+  correctTable: number[] = DEFAULT_CORRECT_DAMAGE_TABLE,
+  wrongSelfDamage: number = DEFAULT_WRONG_SELF_DAMAGE
+): DamageResult {
   if (correct) {
-    return damageTable[Math.min(snippetLevel, damageTable.length - 2)] ?? 0;
+    const idx = Math.min(snippetLevel, correctTable.length - 1);
+    return { damage: correctTable[idx] ?? 3, targetSelf: false };
   }
-  return damageTable[damageTable.length - 1] ?? 30;
+  return { damage: wrongSelfDamage, targetSelf: true };
 }
 
 export type DamageLabel = "PERFECT" | "HIT" | "CLOSE" | "MISS";
 
-export function getDamageLabel(damage: number, artistOnly = false): DamageLabel {
-  if (damage === 0) return "PERFECT";
+export function getDamageLabel(damage: number, correct: boolean, artistOnly = false): DamageLabel {
   if (artistOnly) return "CLOSE";
-  if (damage < 30) return "HIT";
-  return "MISS";
+  if (!correct) return "MISS";
+  if (damage >= 25) return "PERFECT";
+  return "HIT";
 }

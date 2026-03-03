@@ -22,8 +22,8 @@ export function GuessInput({ onGuess, onGiveUp, onSkip, canSkip, disabled }: Gue
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const currentDamage = config.damageTable[Math.min(currentSnippetLevel, config.damageTable.length - 2)] ?? 0;
-  const giveUpDamage = config.damageTable[config.damageTable.length - 1] ?? 30;
+  const currentHitDamage = config.correctDamageTable[Math.min(currentSnippetLevel, config.correctDamageTable.length - 1)] ?? 3;
+  const giveUpDamage = config.wrongSelfDamage;
 
   const doSearch = useCallback(
     async (q: string) => {
@@ -87,18 +87,18 @@ export function GuessInput({ onGuess, onGiveUp, onSkip, canSkip, disabled }: Gue
                 if (e.key === "Enter" && results.length > 0) handleSelect(results[0]);
               }}
             />
-            {/* Damage cost inside input */}
+            {/* Hit power indicator */}
             <span
               className="font-display absolute top-1/2 -translate-y-1/2"
               style={{
                 right: "20px",
                 fontSize: "16px",
                 lineHeight: 1.3,
-                color: currentDamage === 0 ? "var(--accent)" : "var(--accent)",
+                color: "var(--accent)",
                 pointerEvents: "none",
               }}
             >
-              {currentDamage === 0 ? "0 HP" : `-${currentDamage} HP`}
+              {currentHitDamage} HP
             </span>
             {searching && (
               <div
