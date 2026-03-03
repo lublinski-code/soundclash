@@ -4,7 +4,7 @@
  * Snippet durations in seconds, progressive reveal.
  * -1 means "full song" (last tier plays the entire track).
  */
-export const DEFAULT_SNIPPET_DURATIONS = [1, 3, 6, 12, 20, -1];
+export const DEFAULT_SNIPPET_DURATIONS = [1, 3, 6, 12, 20, 30];
 
 /**
  * Damage table indexed by snippet level.

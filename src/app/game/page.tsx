@@ -3,15 +3,13 @@
 import { useCallback, useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "@/store/gameStore";
-import { useSpotifyStore } from "@/store/spotifyStore";
 import { HpHud } from "@/components/game/HpHud";
 import { SnippetPlayer } from "@/components/game/SnippetPlayer";
 import { GuessInput } from "@/components/game/GuessInput";
 import { DamageOverlay } from "@/components/game/DamageOverlay";
 import { AlbumReveal } from "@/components/game/AlbumReveal";
 import { KoScreen } from "@/components/game/KoScreen";
-import { playSnippet, stopSnippet } from "@/lib/spotify/player";
-import { playTrack, pausePlayback } from "@/lib/spotify/api";
+import { playPreview, stopPreview } from "@/lib/spotify/player";
 
 export default function GamePage() {
   const router = useRouter();
@@ -26,14 +24,10 @@ export default function GamePage() {
     roundResults,
     dispatch,
   } = useGameStore();
-  const { isPlayerReady, deviceId } = useSpotifyStore();
   const [isPlaying, setIsPlaying] = useState(false);
   const [snippetPlayed, setSnippetPlayed] = useState(false);
   const snippetStartOffsetRef = useRef<number | null>(null);
 
-  // Redirect to setup if not in an active game.
-  // The timeout prevents a race where the effect fires before Zustand state
-  // propagates after a client-side navigation from the setup page.
   useEffect(() => {
     const timer = setTimeout(() => {
       if (phase === "LOBBY" || songPool.length === 0) {
@@ -43,7 +37,6 @@ export default function GamePage() {
     return () => clearTimeout(timer);
   }, [phase, songPool, router]);
 
-  // Skip VS_SCREEN phase directly to SNIPPET
   useEffect(() => {
     if (phase === "VS_SCREEN") {
       dispatch({ type: "START_SNIPPET" });
@@ -54,21 +47,19 @@ export default function GamePage() {
   const lastResult = roundResults[roundResults.length - 1];
 
   const handlePlaySnippet = useCallback(async () => {
-    if (!currentSong || !isPlayerReady) return;
+    if (!currentSong?.previewUrl) return;
 
     const durationConfig = config.snippetDurations[currentSnippetLevel] ?? 1;
-    const songDurationMs = currentSong.duration_ms;
-    const isFullSong = durationConfig === -1;
-    const snippetDurationMs = isFullSong ? songDurationMs : durationConfig * 1000;
+    const previewDurationMs = 30_000;
+    const isFullPreview = durationConfig === -1;
+    const snippetDurationMs = isFullPreview ? previewDurationMs : durationConfig * 1000;
 
     if (snippetStartOffsetRef.current === null) {
-      if (isFullSong) {
+      if (isFullPreview) {
         snippetStartOffsetRef.current = 0;
       } else {
-        const minOffset = 2000;
-        const maxOffset = Math.max(minOffset, songDurationMs - snippetDurationMs - 5000);
-        snippetStartOffsetRef.current =
-          minOffset + Math.floor(Math.random() * (maxOffset - minOffset));
+        const maxOffset = Math.max(0, previewDurationMs - snippetDurationMs - 2000);
+        snippetStartOffsetRef.current = Math.floor(Math.random() * maxOffset);
       }
     }
 
@@ -76,33 +67,31 @@ export default function GamePage() {
     setSnippetPlayed(true);
 
     try {
-      await playSnippet(
-        currentSong.uri,
+      await playPreview(
+        currentSong.previewUrl,
         snippetDurationMs,
-        () => {
-          setIsPlaying(false);
-        },
+        () => setIsPlaying(false),
         snippetStartOffsetRef.current
       );
     } catch (err) {
       console.error("[Game] Playback error:", err);
       setIsPlaying(false);
     }
-  }, [currentSong, isPlayerReady, config.snippetDurations, currentSnippetLevel]);
+  }, [currentSong, config.snippetDurations, currentSnippetLevel]);
 
   const handleReplay = useCallback(async () => {
-    if (!currentSong || !isPlayerReady) return;
+    if (!currentSong?.previewUrl) return;
     if (isPlaying) {
-      await stopSnippet();
+      stopPreview();
       setIsPlaying(false);
       await new Promise((r) => setTimeout(r, 100));
     }
     await handlePlaySnippet();
-  }, [currentSong, isPlayerReady, isPlaying, handlePlaySnippet]);
+  }, [currentSong, isPlaying, handlePlaySnippet]);
 
   const handleGuess = useCallback(
     async (trackId: string, trackName: string, artistNames: string[]) => {
-      await stopSnippet();
+      stopPreview();
       setIsPlaying(false);
       setSnippetPlayed(false);
       dispatch({ type: "SUBMIT_GUESS", trackId, trackName, artistNames });
@@ -111,14 +100,14 @@ export default function GamePage() {
   );
 
   const handleSkip = useCallback(async () => {
-    await stopSnippet();
+    stopPreview();
     setIsPlaying(false);
     setSnippetPlayed(false);
     dispatch({ type: "SKIP_GUESS" });
   }, [dispatch]);
 
   const handleGiveUp = useCallback(async () => {
-    await stopSnippet();
+    stopPreview();
     setIsPlaying(false);
     setSnippetPlayed(false);
     dispatch({ type: "GIVE_UP" });
@@ -129,46 +118,28 @@ export default function GamePage() {
   }, [dispatch]);
 
   const handleAlbumPlay = useCallback(async () => {
-    if (!currentSong || !deviceId) return;
+    if (!currentSong?.previewUrl) return;
     try {
-      await playTrack(currentSong.uri, deviceId, 0);
+      await playPreview(currentSong.previewUrl, 30_000);
     } catch (err) {
       console.error("Album playback error:", err);
     }
-  }, [currentSong, deviceId]);
+  }, [currentSong]);
 
-  const handleAlbumPause = useCallback(async () => {
-    if (!deviceId) return;
-    try {
-      await pausePlayback(deviceId);
-    } catch {
-      // ignore
-    }
-  }, [deviceId]);
+  const handleAlbumPause = useCallback(() => {
+    stopPreview();
+  }, []);
 
-  const handleAlbumComplete = useCallback(async () => {
-    if (deviceId) {
-      try {
-        await pausePlayback(deviceId);
-      } catch {
-        // ignore
-      }
-    }
+  const handleAlbumComplete = useCallback(() => {
+    stopPreview();
     dispatch({ type: "END_ROUND" });
-  }, [dispatch, deviceId]);
+  }, [dispatch]);
 
-  const handleNewGame = useCallback(async () => {
-    await stopSnippet();
-    if (deviceId) {
-      try {
-        await pausePlayback(deviceId);
-      } catch {
-        // ignore
-      }
-    }
+  const handleNewGame = useCallback(() => {
+    stopPreview();
     dispatch({ type: "RESET" });
     router.push("/setup");
-  }, [dispatch, router, deviceId]);
+  }, [dispatch, router]);
 
   useEffect(() => {
     if (phase === "SNIPPET") {
@@ -232,7 +203,7 @@ export default function GamePage() {
         />
       )}
 
-      {/* End Game button — absolute top-right */}
+      {/* End Game button */}
       {phase !== "KO" && (
         <button
           onClick={handleNewGame}
@@ -287,7 +258,7 @@ export default function GamePage() {
             </p>
           </div>
 
-          {/* Timer (with album art bloom behind it) */}
+          {/* Timer */}
           <div className="relative flex items-center justify-center" style={{ marginBottom: "clamp(16px, 3vh, 28px)" }}>
             {albumArtUrl && (
               <div
@@ -313,7 +284,7 @@ export default function GamePage() {
             />
           </div>
 
-          {/* Input area — shown after first snippet plays */}
+          {/* Input area */}
           {snippetPlayed ? (
             <div className="fade-in w-full flex flex-col items-center" style={{ gap: "0", maxWidth: "640px" }}>
               <GuessInput
@@ -349,6 +320,7 @@ export default function GamePage() {
           albumArt={lastResult.albumArt}
           trackName={lastResult.trackName}
           artistName={lastResult.artistName}
+          spotifyUrl={currentSong?.spotifyUrl}
           onComplete={handleAlbumComplete}
           onPlay={handleAlbumPlay}
           onPause={handleAlbumPause}

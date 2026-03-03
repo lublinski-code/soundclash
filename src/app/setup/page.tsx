@@ -7,27 +7,15 @@ import { GenrePicker } from "@/components/setup/GenrePicker";
 import { EraPicker } from "@/components/setup/EraPicker";
 import { GameConfigPanel } from "@/components/setup/GameConfig";
 import { useGameStore } from "@/store/gameStore";
-import { useSpotifyStore } from "@/store/spotifyStore";
 import { buildSongPool } from "@/lib/spotify/songPool";
-import { isAuthenticated, getAccessToken } from "@/lib/spotify/auth";
-import { getCurrentUser } from "@/lib/spotify/api";
-import { initPlayer, isPlayerConnected, getDeviceId } from "@/lib/spotify/player";
+import { isAuthenticated } from "@/lib/spotify/auth";
 import { getRandomGenres } from "@/lib/game/constants";
 
 export default function SetupPage() {
   const router = useRouter();
   const { teams, config, dispatch, setConfig } = useGameStore();
-  const {
-    isPlayerReady,
-    setAccessToken,
-    setDeviceId,
-    setPlayerReady,
-    setUserInfo,
-    setError: setSpotifyError,
-  } = useSpotifyStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [initializingPlayer, setInitializingPlayer] = useState(false);
   const [showSettings, setShowSettings] = useState(true);
 
   useEffect(() => {
@@ -40,57 +28,13 @@ export default function SetupPage() {
   useEffect(() => {
     if (!isAuthenticated()) {
       router.replace("/");
-      return;
     }
-
-    if (isPlayerConnected()) {
-      const did = getDeviceId();
-      if (did) {
-        setDeviceId(did);
-        setPlayerReady(true);
-      }
-      return;
-    }
-
-    if (!isPlayerReady && !initializingPlayer) {
-      setInitializingPlayer(true);
-      (async () => {
-        try {
-          const token = await getAccessToken();
-          if (token) {
-            setAccessToken(token);
-            const user = await getCurrentUser();
-            setUserInfo(
-              user.display_name,
-              user.images?.[0]?.url ?? null,
-              user.product === "premium"
-            );
-
-            await initPlayer(
-              (deviceId) => {
-                setDeviceId(deviceId);
-                setPlayerReady(true);
-                setInitializingPlayer(false);
-              },
-              (err) => {
-                setSpotifyError(err);
-                setInitializingPlayer(false);
-              }
-            );
-          }
-        } catch {
-          setInitializingPlayer(false);
-        }
-      })();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPlayerReady, initializingPlayer]);
+  }, [router]);
 
   const canStart =
     teams[0].members.length > 0 &&
     teams[1].members.length > 0 &&
-    config.genres.length > 0 &&
-    isPlayerReady;
+    config.genres.length > 0;
 
   const handleStartBattle = async () => {
     if (!canStart) return;
@@ -127,7 +71,6 @@ export default function SetupPage() {
   if (teams[0].members.length === 0) validationMessages.push("Add players to Team 1");
   if (teams[1].members.length === 0) validationMessages.push("Add players to Team 2");
   if (config.genres.length === 0) validationMessages.push("Select at least one genre");
-  if (!isPlayerReady && !initializingPlayer) validationMessages.push("Spotify player not ready — go back and reconnect");
 
   return (
     <main
@@ -227,21 +170,6 @@ export default function SetupPage() {
 
         {/* Status + Start */}
         <div className="flex flex-col items-center" style={{ marginTop: "24px", gap: "12px" }}>
-          {initializingPlayer && (
-            <div
-              className="flex items-center text-caption"
-              style={{ gap: "8px", color: "var(--text-muted)" }}
-            >
-              <div className="w-3 h-3 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
-              Initializing player...
-            </div>
-          )}
-          {isPlayerReady && (
-            <p className="text-caption" style={{ color: "var(--success)" }}>
-              Status: Ready!
-            </p>
-          )}
-
           {validationMessages.length > 0 && (
             <div
               className="text-center"

@@ -4,7 +4,7 @@ import { useSpotifyStore } from "@/store/spotifyStore";
 import { redirectToSpotifyAuth, clearTokens } from "@/lib/spotify/auth";
 
 export function SpotifyConnect() {
-  const { userName, userAvatar, isPlayerReady, error } = useSpotifyStore();
+  const { userName, userAvatar, error } = useSpotifyStore();
 
   const handleConnect = async () => {
     try {
@@ -49,25 +49,14 @@ export function SpotifyConnect() {
             <span className="text-caption" style={{ color: "var(--text-muted)" }}>Connected as:</span>{" "}
             <span className="text-body-2 truncate" style={{ color: "var(--text-primary)" }}>{userName}</span>
           </div>
-          {isPlayerReady && (
-            <button
-              onClick={handleDisconnect}
-              className="btn-muted cursor-pointer"
-              style={{ fontSize: "12px" }}
-            >
-              Disconnect
-            </button>
-          )}
-        </div>
-        {!isPlayerReady && (
-          <div
-            className="flex items-center justify-center"
-            style={{ gap: "10px", fontSize: "14px", color: "var(--text-muted)" }}
+          <button
+            onClick={handleDisconnect}
+            className="btn-muted cursor-pointer"
+            style={{ fontSize: "12px" }}
           >
-            <div className="w-4 h-4 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
-            Initializing player...
-          </div>
-        )}
+            Disconnect
+          </button>
+        </div>
       </div>
     );
   }
@@ -82,7 +71,7 @@ export function SpotifyConnect() {
         className="btn-arcade cursor-pointer"
         style={{ minWidth: "280px" }}
       >
-        CONNECT SPOTIFY
+        LOGIN WITH SPOTIFY
       </button>
 
       {error && (
@@ -107,8 +96,8 @@ export function SpotifyConnect() {
           className="text-caption"
           style={{ color: "var(--text-muted)" }}
         >
-          Spotify Premium required. SoundClash accesses your profile
-          and playback controls to run the game. No other data is collected.
+          Any Spotify account works. SoundClash uses your profile
+          to personalize the experience. No other data is collected.
         </p>
         <p
           className="text-caption"

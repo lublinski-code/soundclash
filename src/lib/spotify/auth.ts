@@ -5,23 +5,12 @@ const SPOTIFY_AUTH_URL = "https://accounts.spotify.com/authorize";
 const SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token";
 
 const SCOPES = [
-  "streaming",
   "user-read-email",
   "user-read-private",
-  "user-modify-playback-state",
-  "user-read-playback-state",
-  "user-library-read",
-  "user-top-read",
-  "playlist-read-private",
-  "playlist-read-collaborative",
-  "playlist-modify-private",
-  "playlist-modify-public",
 ].join(" ");
 
 function getClientId(): string {
   const id = process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID;
-  console.log("DEBUG: Client ID from env:", id);
-  console.log("DEBUG: All NEXT_PUBLIC env vars:", Object.keys(process.env).filter(k => k.startsWith("NEXT_PUBLIC")));
   if (!id || id === "your_client_id_here") {
     throw new Error(
       "NEXT_PUBLIC_SPOTIFY_CLIENT_ID is not set. Edit .env.local with your Spotify Client ID, then restart the dev server (npm run dev)."

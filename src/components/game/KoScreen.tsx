@@ -3,14 +3,11 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "@/store/gameStore";
-import { createPlaylist } from "@/lib/spotify/api";
 
 export function KoScreen() {
   const router = useRouter();
   const { winner, teams, roundResults, songPool, dispatch } = useGameStore();
   const [showDetails, setShowDetails] = useState(false);
-  const [playlistState, setPlaylistState] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const [playlistUrl, setPlaylistUrl] = useState<string | null>(null);
 
   const loser = teams.find((t) => t.id !== winner?.id);
 
@@ -131,6 +128,7 @@ export function KoScreen() {
             >
               {roundResults.map((result, i) => {
                 const team = teams.find((t) => t.id === result.teamId);
+                const track = songPool.find((t) => t.id === result.trackId);
                 return (
                   <div
                     key={i}
@@ -158,6 +156,20 @@ export function KoScreen() {
                       </span>
                     </div>
                     <div className="flex items-center shrink-0" style={{ gap: "12px", marginLeft: "10px" }}>
+                      {track?.spotifyUrl && (
+                        <a
+                          href={track.spotifyUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="transition-opacity hover:opacity-80"
+                          style={{ color: "var(--accent)", lineHeight: 0 }}
+                          aria-label={`Open ${result.trackName} in Spotify`}
+                        >
+                          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+                            <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z" />
+                          </svg>
+                        </a>
+                      )}
                       <span className="text-caption" style={{ color: "var(--text-muted)" }}>
                         {team?.name}
                       </span>
@@ -175,8 +187,6 @@ export function KoScreen() {
                       >
                         {result.damage === 0
                           ? "0 HP"
-                          : result.correct
-                          ? `-${result.damage} HP`
                           : `-${result.damage} HP`}
                       </span>
                     </div>
@@ -184,77 +194,6 @@ export function KoScreen() {
                 );
               })}
             </div>
-          </div>
-
-          {/* Save as Playlist */}
-          <div>
-            {playlistState === "idle" && (
-              <button
-                onClick={async () => {
-                  setPlaylistState("saving");
-                  try {
-                    const trackUris = roundResults
-                      .map((r) => {
-                        const track = songPool.find((t) => t.id === r.trackId);
-                        return track?.uri;
-                      })
-                      .filter((uri): uri is string => !!uri);
-                    const uniqueUris = [...new Set(trackUris)];
-                    if (uniqueUris.length === 0) {
-                      setPlaylistState("error");
-                      return;
-                    }
-                    const date = new Date().toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    });
-                    const pl = await createPlaylist(
-                      `SoundClash Battle - ${date}`,
-                      uniqueUris,
-                      `Songs from a SoundClash battle on ${date}. ${roundResults.length} rounds played.`
-                    );
-                    setPlaylistUrl(pl.external_urls?.spotify ?? null);
-                    setPlaylistState("saved");
-                  } catch (err) {
-                    console.error("Playlist creation failed:", err);
-                    setPlaylistState("error");
-                  }
-                }}
-                className="btn-secondary cursor-pointer"
-              >
-                Save as Spotify Playlist
-              </button>
-            )}
-            {playlistState === "saving" && (
-              <div
-                className="flex items-center justify-center text-body-2"
-                style={{ gap: "10px", color: "var(--text-muted)" }}
-              >
-                <div className="w-4 h-4 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
-                Creating playlist...
-              </div>
-            )}
-            {playlistState === "saved" && (
-              <div className="text-body-2" style={{ color: "var(--success)" }}>
-                Playlist saved!{" "}
-                {playlistUrl && (
-                  <a
-                    href={playlistUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline hover:opacity-80"
-                  >
-                    Open in Spotify
-                  </a>
-                )}
-              </div>
-            )}
-            {playlistState === "error" && (
-              <div className="text-body-2" style={{ color: "var(--destructive)" }}>
-                Failed to create playlist. Try reconnecting to Spotify.
-              </div>
-            )}
           </div>
 
           {/* Single Rematch CTA */}

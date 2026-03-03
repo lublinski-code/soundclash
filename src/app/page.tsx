@@ -5,18 +5,14 @@ import { useRouter } from "next/navigation";
 import { HeroSection } from "@/components/landing/HeroSection";
 import { SpotifyConnect } from "@/components/landing/SpotifyConnect";
 import { useSpotifyStore } from "@/store/spotifyStore";
-import { getAccessToken, isAuthenticated } from "@/lib/spotify/auth";
+import { getAccessToken, isAuthenticated, clearTokens } from "@/lib/spotify/auth";
 import { getCurrentUser } from "@/lib/spotify/api";
-import { initPlayer, isPlayerConnected, getDeviceId } from "@/lib/spotify/player";
 
 export default function LandingPage() {
   const router = useRouter();
   const {
     userName,
-    isPlayerReady,
     setAccessToken,
-    setDeviceId,
-    setPlayerReady,
     setUserInfo,
     setError,
   } = useSpotifyStore();
@@ -25,48 +21,31 @@ export default function LandingPage() {
   useEffect(() => {
     async function checkAuth() {
       try {
-        if (typeof window !== "undefined" && isPlayerConnected()) {
-          const did = getDeviceId();
-          if (did) {
-            setDeviceId(did);
-            setPlayerReady(true);
-          }
-          setLoading(false);
-          return;
-        }
-
         if (isAuthenticated()) {
           const token = await getAccessToken();
           if (token) {
             setAccessToken(token);
             const user = await getCurrentUser();
-            const isPremium = user.product === "premium";
-
             setUserInfo(
               user.display_name,
-              user.images?.[0]?.url ?? null,
-              isPremium
-            );
-
-            if (!isPremium) {
-              setError(
-                `Your Spotify account type is "${user.product}". The Web Playback SDK requires Spotify Premium.`
-              );
-              setLoading(false);
-              return;
-            }
-
-            await initPlayer(
-              (deviceId) => {
-                setDeviceId(deviceId);
-                setPlayerReady(true);
-              },
-              (error) => setError(error)
+              user.images?.[0]?.url ?? null
             );
           }
         }
       } catch (err) {
         console.error("Auth check failed:", err);
+        const message = err instanceof Error ? err.message : String(err);
+        if (message.includes("403") && message.includes("/me")) {
+          clearTokens();
+          useSpotifyStore.getState().reset();
+          setError(
+            "Your Spotify account isn't authorized for this app. It's in development mode — ask the app owner to add your Spotify email in the Spotify Developer Dashboard (User Management)."
+          );
+        } else {
+          setError(
+            err instanceof Error ? err.message : "Connection failed. Please try again."
+          );
+        }
       } finally {
         setLoading(false);
       }
@@ -105,7 +84,7 @@ export default function LandingPage() {
           <>
             <SpotifyConnect />
 
-            {userName && isPlayerReady && (
+            {userName && (
               <button
                 onClick={handleStartGame}
                 className="btn-arcade fade-in cursor-pointer"
@@ -113,16 +92,6 @@ export default function LandingPage() {
               >
                 START GAME
               </button>
-            )}
-
-            {userName && !isPlayerReady && (
-              <div
-                className="flex items-center justify-center"
-                style={{ gap: "10px", color: "var(--text-muted)", fontSize: "14px" }}
-              >
-                <div className="w-4 h-4 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
-                <span>Initializing player...</span>
-              </div>
             )}
           </>
         )}
@@ -137,7 +106,7 @@ export default function LandingPage() {
             className="text-caption"
             style={{ color: "var(--text-muted)" }}
           >
-            Powered by Spotify &middot; Premium Required
+            Powered by Spotify
           </p>
           <div
             className="flex items-center justify-center"

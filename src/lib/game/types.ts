@@ -60,4 +60,6 @@ export type SpotifyTrack = {
   };
   uri: string;
   duration_ms: number;
+  previewUrl: string;
+  spotifyUrl: string;
 };
