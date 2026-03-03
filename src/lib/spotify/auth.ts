@@ -20,14 +20,10 @@ function getClientId(): string {
 }
 
 function getRedirectUri(): string {
-  if (process.env.NEXT_PUBLIC_SPOTIFY_REDIRECT_URI) {
-    return process.env.NEXT_PUBLIC_SPOTIFY_REDIRECT_URI;
-  }
-  // Fallback: derive from current URL (client-side only)
   if (typeof window !== "undefined") {
     return `${window.location.origin}/callback`;
   }
-  return "http://localhost:3000/callback";
+  return process.env.NEXT_PUBLIC_SPOTIFY_REDIRECT_URI || "http://localhost:3000/callback";
 }
 
 /** Generate a random code verifier for PKCE */
