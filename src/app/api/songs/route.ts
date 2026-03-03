@@ -152,6 +152,7 @@ type RawTrack = {
   uri: string;
   duration_ms: number;
   popularity: number;
+  preview_url: string | null;
   external_urls?: { spotify?: string };
 };
 
@@ -249,7 +250,7 @@ async function fetchPlaylistTracks(
     const data = await spFetch<{
       items: { track: RawTrack }[];
       total: number;
-    }>(`/playlists/${playlistId}/tracks?limit=${limit}&offset=${offset}&market=${market}&fields=items(track(id,name,artists(id,name),album(id,name,album_type,images),uri,duration_ms,popularity,external_urls)),total`, token);
+    }>(`/playlists/${playlistId}/tracks?limit=${limit}&offset=${offset}&market=${market}&fields=items(track(id,name,artists(id,name),album(id,name,album_type,images),uri,duration_ms,popularity,preview_url,external_urls)),total`, token);
 
     if (!data?.items) break;
     for (const item of data.items) {
@@ -355,10 +356,13 @@ export async function POST(request: Request) {
       return artistCount[mainArtist] <= maxPerArtist;
     });
 
-    // Trim to 100 candidates (we'll filter by preview_url client-side)
-    allTracks = shuffle(allTracks).slice(0, 100);
+    // Trim to 200 candidates before preview filtering (many tracks lack previews)
+    allTracks = shuffle(allTracks).slice(0, 200);
 
-    const result = allTracks.map(t => ({
+    // Only return tracks that have a preview URL
+    const tracksWithPreviews = allTracks.filter(t => !!t.preview_url);
+
+    const result = tracksWithPreviews.map(t => ({
       id: t.id,
       name: t.name,
       artists: t.artists.map(a => ({ id: a.id, name: a.name })),
@@ -369,6 +373,7 @@ export async function POST(request: Request) {
       },
       uri: t.uri,
       duration_ms: t.duration_ms,
+      previewUrl: t.preview_url as string,
       spotifyUrl: t.external_urls?.spotify ?? `https://open.spotify.com/track/${t.id}`,
     }));
 

@@ -1,13 +1,9 @@
 // ─── Song Pool: Build a Game Track List ───
-// Hybrid strategy:
-//   1. Server API route (/api/songs) uses Client Credentials for search + playlists
-//   2. Client-side batch fetch with user token to get preview URLs
-//   3. Filter out tracks without preview URLs
+// Server API route (/api/songs) handles all Spotify fetching via Client Credentials.
+// Preview URLs are resolved server-side and returned directly — no client-side
+// Spotify API calls needed.
 
 import type { SpotifyTrack, GameConfig } from "../game/types";
-import { getAccessToken } from "../spotify/auth";
-
-const SPOTIFY_BASE = "https://api.spotify.com/v1";
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -29,47 +25,10 @@ type ServerTrack = {
   };
   uri: string;
   duration_ms: number;
+  previewUrl: string;
   spotifyUrl: string;
 };
 
-/**
- * Fetch track details in batches of 50 using the user's auth token.
- * This is needed because preview_url is only reliably returned with user tokens.
- */
-async function batchFetchPreviews(
-  trackIds: string[],
-  token: string,
-  market: string
-): Promise<Map<string, string>> {
-  const previews = new Map<string, string>();
-  const batchSize = 50;
-
-  for (let i = 0; i < trackIds.length; i += batchSize) {
-    const batch = trackIds.slice(i, i + batchSize);
-    const resp = await fetch(
-      `${SPOTIFY_BASE}/tracks?ids=${batch.join(",")}&market=${market}`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-
-    if (!resp.ok) {
-      console.warn(`[SongPool] Batch fetch failed: ${resp.status}`);
-      continue;
-    }
-
-    const data = await resp.json();
-    for (const track of data.tracks ?? []) {
-      if (track?.preview_url) {
-        previews.set(track.id, track.preview_url);
-      }
-    }
-  }
-
-  return previews;
-}
-
-/**
- * Build a song pool using the hybrid server/client approach.
- */
 export async function buildSongPool(
   config: GameConfig,
   targetSize = 60
@@ -83,7 +42,6 @@ export async function buildSongPool(
 
   console.log(`[SongPool] Building pool: genres=[${genres.join(", ")}], eras=[${(eras ?? []).join(", ")}], market=${market}`);
 
-  // Step 1: Fetch candidates from server route (Client Credentials)
   const resp = await fetch("/api/songs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -96,38 +54,23 @@ export async function buildSongPool(
   }
 
   const { tracks: serverTracks } = (await resp.json()) as { tracks: ServerTrack[] };
-  console.log(`[SongPool] Server returned ${serverTracks.length} candidates`);
+  console.log(`[SongPool] Server returned ${serverTracks.length} tracks with previews`);
 
   if (serverTracks.length === 0) return [];
 
-  // Step 2: Batch fetch preview URLs using user's auth token
-  const token = await getAccessToken();
-  if (!token) throw new Error("Not authenticated. Please reconnect to Spotify.");
-
-  const trackIds = serverTracks.map(t => t.id);
-  const previews = await batchFetchPreviews(trackIds, token, market);
-  console.log(`[SongPool] Preview URLs found: ${previews.size}/${trackIds.length}`);
-
-  // Step 3: Merge and filter — only keep tracks with preview URLs
-  const pool: SpotifyTrack[] = [];
-  for (const st of serverTracks) {
-    const previewUrl = previews.get(st.id);
-    if (!previewUrl) continue;
-
-    pool.push({
-      id: st.id,
-      name: st.name,
-      artists: st.artists,
-      album: st.album,
-      uri: st.uri,
-      duration_ms: st.duration_ms,
-      previewUrl,
-      spotifyUrl: st.spotifyUrl,
-    });
-  }
+  const pool: SpotifyTrack[] = serverTracks.map(st => ({
+    id: st.id,
+    name: st.name,
+    artists: st.artists,
+    album: st.album,
+    uri: st.uri,
+    duration_ms: st.duration_ms,
+    previewUrl: st.previewUrl,
+    spotifyUrl: st.spotifyUrl,
+  }));
 
   const result = shuffle(pool).slice(0, targetSize);
-  console.log(`[SongPool] Final pool: ${result.length} tracks with previews`);
+  console.log(`[SongPool] Final pool: ${result.length} tracks`);
 
   return result;
 }
