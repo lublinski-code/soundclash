@@ -286,10 +286,10 @@ async function searchForTracks(
 }
 
 /**
- * Batch-fetch preview_url for up to 200 track IDs using the provided token.
+ * Batch-fetch preview_url for track IDs using the provided Spotify token.
  * Returns a map of trackId → previewUrl.
  */
-async function batchFetchPreviewUrls(
+async function batchFetchSpotifyPreviews(
   trackIds: string[],
   token: string,
   market: string
@@ -311,6 +311,62 @@ async function batchFetchPreviewUrls(
   }
 
   return previews;
+}
+
+type ItunesResult = { artistName: string; trackName: string; previewUrl?: string };
+
+/**
+ * Fetch iTunes Search results for an artist name.
+ * iTunes provides free 30-second previews with no auth.
+ */
+async function fetchItunesForArtist(artistName: string): Promise<ItunesResult[]> {
+  try {
+    const resp = await fetch(
+      `https://itunes.apple.com/search?term=${encodeURIComponent(artistName)}&media=music&entity=song&limit=50`,
+      { signal: AbortSignal.timeout(5000) }
+    );
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    return data.results ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * For tracks missing a preview URL, query iTunes by artist and match by track name.
+ * Groups by primary artist to minimise API calls.
+ */
+async function enrichWithItunesPreviews(tracks: RawTrack[]): Promise<Map<string, string>> {
+  const previewMap = new Map<string, string>();
+
+  // Group by primary artist
+  const artistGroups = new Map<string, RawTrack[]>();
+  for (const track of tracks) {
+    const artist = track.artists[0]?.name ?? "";
+    if (!artistGroups.has(artist)) artistGroups.set(artist, []);
+    artistGroups.get(artist)!.push(track);
+  }
+
+  // Parallel iTunes searches — one per unique artist
+  await Promise.all(
+    [...artistGroups.entries()].map(async ([artistName, artistTracks]) => {
+      const results = await fetchItunesForArtist(artistName);
+      for (const track of artistTracks) {
+        const normTrack = track.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+        const match = results.find(r => {
+          if (!r.previewUrl) return false;
+          const normItunes = r.trackName.toLowerCase().replace(/[^a-z0-9]/g, "");
+          return normItunes === normTrack || normItunes.startsWith(normTrack) || normTrack.startsWith(normItunes);
+        });
+        if (match?.previewUrl) {
+          previewMap.set(track.id, match.previewUrl);
+        }
+      }
+    })
+  );
+
+  return previewMap;
 }
 
 export async function POST(request: Request) {
@@ -388,18 +444,29 @@ export async function POST(request: Request) {
     // Trim to 200 candidates
     allTracks = shuffle(allTracks).slice(0, 200);
 
-    // Resolve preview_url: prefer user token (much better coverage), fall back to CC results
+    // Layer 1: user token batch fetch (most reliable for Spotify preview_url)
     let previewMap = new Map<string, string>();
-
     if (userToken) {
-      previewMap = await batchFetchPreviewUrls(allTracks.map(t => t.id), userToken, mkt);
-      console.log(`[API/songs] Preview URLs via user token: ${previewMap.size}/${allTracks.length}`);
+      previewMap = await batchFetchSpotifyPreviews(allTracks.map(t => t.id), userToken, mkt);
+      console.log(`[API/songs] Spotify user-token previews: ${previewMap.size}/${allTracks.length}`);
     }
 
-    // For any tracks still missing a preview URL, use the CC token result
-    const stillMissing = allTracks.filter(t => !previewMap.has(t.id) && !!t.preview_url);
-    for (const t of stillMissing) {
-      previewMap.set(t.id, t.preview_url as string);
+    // Layer 2: CC token preview_url already embedded in search/playlist results
+    for (const t of allTracks) {
+      if (!previewMap.has(t.id) && t.preview_url) {
+        previewMap.set(t.id, t.preview_url);
+      }
+    }
+    console.log(`[API/songs] After Spotify CC fallback: ${previewMap.size}/${allTracks.length}`);
+
+    // Layer 3: iTunes Search API — free, no auth, reliable 30s previews
+    const missingPreviews = allTracks.filter(t => !previewMap.has(t.id));
+    if (missingPreviews.length > 0) {
+      const itunesPreviews = await enrichWithItunesPreviews(missingPreviews);
+      console.log(`[API/songs] iTunes previews found: ${itunesPreviews.size}/${missingPreviews.length}`);
+      for (const [id, url] of itunesPreviews) {
+        previewMap.set(id, url);
+      }
     }
 
     console.log(`[API/songs] Total tracks with previews: ${previewMap.size}/${allTracks.length}`);
