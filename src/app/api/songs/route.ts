@@ -285,19 +285,48 @@ async function searchForTracks(
   return data?.tracks?.items ?? [];
 }
 
+/**
+ * Batch-fetch preview_url for up to 200 track IDs using the provided token.
+ * Returns a map of trackId → previewUrl.
+ */
+async function batchFetchPreviewUrls(
+  trackIds: string[],
+  token: string,
+  market: string
+): Promise<Map<string, string>> {
+  const previews = new Map<string, string>();
+  const batchSize = 50;
+
+  for (let i = 0; i < trackIds.length; i += batchSize) {
+    const batch = trackIds.slice(i, i + batchSize);
+    const data = await spFetch<{ tracks: (RawTrack | null)[] }>(
+      `/tracks?ids=${batch.join(",")}&market=${market}`,
+      token
+    );
+    for (const track of data?.tracks ?? []) {
+      if (track?.id && track.preview_url) {
+        previews.set(track.id, track.preview_url);
+      }
+    }
+  }
+
+  return previews;
+}
+
 export async function POST(request: Request) {
   try {
-    const { genres, eras, market } = (await request.json()) as {
+    const { genres, eras, market, userToken } = (await request.json()) as {
       genres: string[];
       eras: string[];
       market: string;
+      userToken?: string;
     };
 
     if (!genres?.length) {
       return NextResponse.json({ error: "No genres provided" }, { status: 400 });
     }
 
-    const token = await getClientCredentialsToken();
+    const ccToken = await getClientCredentialsToken();
     const mkt = market || "US";
     const yearFilter = buildYearFilter(eras);
     const popularityFloor = yearFilter ? 15 : 65;
@@ -309,7 +338,7 @@ export async function POST(request: Request) {
       for (const era of eras) {
         const playlistId = ERA_PLAYLISTS[era];
         if (playlistId) {
-          const tracks = await fetchPlaylistTracks(playlistId, token, mkt);
+          const tracks = await fetchPlaylistTracks(playlistId, ccToken, mkt);
           allTracks.push(...tracks);
         }
       }
@@ -323,7 +352,7 @@ export async function POST(request: Request) {
       for (const artist of shuffled) {
         const offset = Math.floor(Math.random() * 5);
         const query = `artist:${artist}${yearFilter}`;
-        const tracks = await searchForTracks(query, token, 10, offset, mkt);
+        const tracks = await searchForTracks(query, ccToken, 10, offset, mkt);
 
         const normalQ = artist.toLowerCase().replace(/[^a-z0-9]/g, "");
         const verified = tracks.filter(t =>
@@ -356,26 +385,41 @@ export async function POST(request: Request) {
       return artistCount[mainArtist] <= maxPerArtist;
     });
 
-    // Trim to 200 candidates before preview filtering (many tracks lack previews)
+    // Trim to 200 candidates
     allTracks = shuffle(allTracks).slice(0, 200);
 
-    // Only return tracks that have a preview URL
-    const tracksWithPreviews = allTracks.filter(t => !!t.preview_url);
+    // Resolve preview_url: prefer user token (much better coverage), fall back to CC results
+    let previewMap = new Map<string, string>();
 
-    const result = tracksWithPreviews.map(t => ({
-      id: t.id,
-      name: t.name,
-      artists: t.artists.map(a => ({ id: a.id, name: a.name })),
-      album: {
-        id: t.album.id,
-        name: t.album.name,
-        images: t.album.images,
-      },
-      uri: t.uri,
-      duration_ms: t.duration_ms,
-      previewUrl: t.preview_url as string,
-      spotifyUrl: t.external_urls?.spotify ?? `https://open.spotify.com/track/${t.id}`,
-    }));
+    if (userToken) {
+      previewMap = await batchFetchPreviewUrls(allTracks.map(t => t.id), userToken, mkt);
+      console.log(`[API/songs] Preview URLs via user token: ${previewMap.size}/${allTracks.length}`);
+    }
+
+    // For any tracks still missing a preview URL, use the CC token result
+    const stillMissing = allTracks.filter(t => !previewMap.has(t.id) && !!t.preview_url);
+    for (const t of stillMissing) {
+      previewMap.set(t.id, t.preview_url as string);
+    }
+
+    console.log(`[API/songs] Total tracks with previews: ${previewMap.size}/${allTracks.length}`);
+
+    const result = allTracks
+      .filter(t => previewMap.has(t.id))
+      .map(t => ({
+        id: t.id,
+        name: t.name,
+        artists: t.artists.map(a => ({ id: a.id, name: a.name })),
+        album: {
+          id: t.album.id,
+          name: t.album.name,
+          images: t.album.images,
+        },
+        uri: t.uri,
+        duration_ms: t.duration_ms,
+        previewUrl: previewMap.get(t.id) as string,
+        spotifyUrl: t.external_urls?.spotify ?? `https://open.spotify.com/track/${t.id}`,
+      }));
 
     return NextResponse.json({ tracks: result });
   } catch (err) {

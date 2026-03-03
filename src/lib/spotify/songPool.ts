@@ -1,9 +1,10 @@
 // ─── Song Pool: Build a Game Track List ───
-// Server API route (/api/songs) handles all Spotify fetching via Client Credentials.
-// Preview URLs are resolved server-side and returned directly — no client-side
-// Spotify API calls needed.
+// Server API route (/api/songs) handles all Spotify fetching.
+// The user's access token is sent to the server so it can resolve preview_url
+// server-side (user tokens have much better preview coverage than CC tokens).
 
 import type { SpotifyTrack, GameConfig } from "../game/types";
+import { getAccessToken } from "../spotify/auth";
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -42,10 +43,12 @@ export async function buildSongPool(
 
   console.log(`[SongPool] Building pool: genres=[${genres.join(", ")}], eras=[${(eras ?? []).join(", ")}], market=${market}`);
 
+  const userToken = await getAccessToken();
+
   const resp = await fetch("/api/songs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ genres, eras, market }),
+    body: JSON.stringify({ genres, eras, market, userToken }),
   });
 
   if (!resp.ok) {
