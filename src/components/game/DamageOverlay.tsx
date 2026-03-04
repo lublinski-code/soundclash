@@ -132,7 +132,7 @@ export function DamageOverlay({ damage, correct, artistOnly = false, targetName,
           >
             {label === "PERFECT" && "KNOCKOUT BLOW!"}
             {label === "HIT" && "NICE GUESS!"}
-            {label === "CLOSE" && "RIGHT ARTIST!"}
+            {label === "CLOSE" && "RIGHT ARTIST · WRONG SONG"}
             {label === "MISS" && "WRONG!"}
           </div>
 
@@ -146,6 +146,20 @@ export function DamageOverlay({ damage, correct, artistOnly = false, targetName,
           >
             {hpLine}
           </div>
+
+          {artistOnly && (
+            <div
+              className="text-body-2"
+              style={{
+                marginTop: "4px",
+                color: "var(--text-muted)",
+                fontWeight: 400,
+                opacity: 0.7,
+              }}
+            >
+              partial hit — knew the artist, not the song
+            </div>
+          )}
         </div>
       </div>
     </>

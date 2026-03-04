@@ -193,6 +193,7 @@ export function AlbumReveal({
               target="_blank"
               rel="noopener noreferrer"
               className="btn-secondary cursor-pointer"
+              onClick={() => onPause?.()}
               style={{
                 display: "inline-flex",
                 alignItems: "center",

@@ -38,6 +38,13 @@ function TeamPanel({
     onUpdate({ ...team, name });
   };
 
+  const updateMemberName = (playerId: string, name: string) => {
+    onUpdate({
+      ...team,
+      members: team.members.map((m) => (m.id === playerId ? { ...m, name } : m)),
+    });
+  };
+
   return (
     <div
       className="flex-1 rounded-lg"
@@ -57,34 +64,54 @@ function TeamPanel({
           lineHeight: 1.3,
           color: "var(--text-primary)",
           border: "none",
+          borderBottom: "1px dashed var(--border-default)",
           marginBottom: "16px",
+          paddingBottom: "8px",
+          transition: "border-color 150ms ease-out",
         }}
         placeholder="Team Name"
+        onFocus={(e) => {
+          e.currentTarget.style.borderBottomColor = "var(--accent)";
+        }}
+        onBlur={(e) => {
+          e.currentTarget.style.borderBottomColor = "var(--border-default)";
+        }}
       />
 
       <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "16px" }}>
         {team.members.map((member) => (
           <div
             key={member.id}
-            className="flex items-center justify-between rounded-lg group transition-colors"
+            className="flex items-center rounded-lg group transition-colors"
             style={{
-              padding: "10px 14px",
+              padding: "4px 4px 4px 14px",
               background: "var(--bg-secondary)",
               border: "1px solid var(--border-subtle)",
+              gap: "8px",
             }}
           >
-            <span className="text-body-2" style={{ color: "var(--text-primary)" }}>
-              {member.name}
-            </span>
+            <input
+              type="text"
+              value={member.name}
+              onChange={(e) => updateMemberName(member.id, e.target.value)}
+              className="flex-1 bg-transparent outline-none text-body-2"
+              style={{
+                color: "var(--text-primary)",
+                border: "none",
+                minHeight: "32px",
+              }}
+              aria-label={`Edit player name ${member.name}`}
+            />
             <button
               onClick={() => removeMember(member.id)}
-              className="transition-colors opacity-50 group-hover:opacity-100 cursor-pointer"
+              className="transition-colors opacity-50 group-hover:opacity-100 cursor-pointer shrink-0"
               style={{
                 color: "var(--text-muted)",
                 fontSize: "16px",
                 lineHeight: 1,
                 background: "none",
                 border: "none",
+                padding: "6px 10px",
               }}
               aria-label={`Remove ${member.name}`}
             >

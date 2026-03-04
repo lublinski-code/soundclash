@@ -97,39 +97,41 @@ export default function LandingPage() {
         )}
       </div>
 
-      <footer
-        className="relative z-10 text-center"
-        style={{ padding: "16px 24px 32px" }}
-      >
-        <div className="flex flex-col items-center" style={{ gap: "8px" }}>
-          <p
-            className="text-caption"
-            style={{ color: "var(--text-muted)" }}
-          >
-            Powered by Spotify
-          </p>
-          <div
-            className="flex items-center justify-center"
-            style={{ gap: "12px", fontSize: "12px", color: "var(--text-muted)" }}
-          >
-            <a
-              href="/privacy"
-              className="hover:underline"
+      {userName && (
+        <footer
+          className="relative z-10 text-center"
+          style={{ padding: "16px 24px 32px" }}
+        >
+          <div className="flex flex-col items-center" style={{ gap: "8px" }}>
+            <p
+              className="text-caption"
               style={{ color: "var(--text-muted)" }}
             >
-              Privacy
-            </a>
-            <span style={{ opacity: 0.3 }}>&middot;</span>
-            <a
-              href="/terms"
-              className="hover:underline"
-              style={{ color: "var(--text-muted)" }}
+              Powered by Spotify
+            </p>
+            <div
+              className="flex items-center justify-center"
+              style={{ gap: "12px", fontSize: "12px", color: "var(--text-muted)" }}
             >
-              Terms
-            </a>
+              <a
+                href="/privacy"
+                className="hover:underline"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Privacy
+              </a>
+              <span style={{ opacity: 0.3 }}>&middot;</span>
+              <a
+                href="/terms"
+                className="hover:underline"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Terms
+              </a>
+            </div>
           </div>
-        </div>
-      </footer>
+        </footer>
+      )}
     </main>
   );
 }
