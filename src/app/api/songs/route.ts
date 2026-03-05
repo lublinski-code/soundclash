@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
+import { getClientCredentialsToken } from "@/lib/spotify/clientToken";
 
-const TOKEN_URL = "https://accounts.spotify.com/api/token";
 const BASE = "https://api.spotify.com/v1";
 
 const ERA_PLAYLISTS: Record<string, string> = {
@@ -155,38 +155,6 @@ type RawTrack = {
   preview_url: string | null;
   external_urls?: { spotify?: string };
 };
-
-let cachedToken: { token: string; expiresAt: number } | null = null;
-
-async function getClientCredentialsToken(): Promise<string> {
-  if (cachedToken && Date.now() < cachedToken.expiresAt - 60_000) {
-    return cachedToken.token;
-  }
-
-  const clientId = process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID;
-  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
-  if (!clientId || !clientSecret) {
-    throw new Error("Missing SPOTIFY_CLIENT_SECRET or NEXT_PUBLIC_SPOTIFY_CLIENT_ID");
-  }
-
-  const resp = await fetch(TOKEN_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`,
-    },
-    body: "grant_type=client_credentials",
-  });
-
-  if (!resp.ok) throw new Error(`Client Credentials auth failed: ${resp.status}`);
-
-  const data = await resp.json();
-  cachedToken = {
-    token: data.access_token,
-    expiresAt: Date.now() + data.expires_in * 1000,
-  };
-  return cachedToken.token;
-}
 
 async function spFetch<T>(endpoint: string, token: string): Promise<T | null> {
   const resp = await fetch(`${BASE}${endpoint}`, {

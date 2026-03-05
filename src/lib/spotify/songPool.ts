@@ -1,7 +1,7 @@
 // ─── Song Pool: Build a Game Track List ───
 // Server API route (/api/songs) handles all Spotify fetching.
-// The user's access token is sent to the server so it can resolve preview_url
-// server-side (user tokens have much better preview coverage than CC tokens).
+// If the user is logged in, their token is sent for better preview coverage.
+// Works without user auth — falls back to Client Credentials + iTunes previews.
 
 import type { SpotifyTrack, GameConfig } from "../game/types";
 import { getAccessToken } from "../spotify/auth";
@@ -43,7 +43,12 @@ export async function buildSongPool(
 
   console.log(`[SongPool] Building pool: genres=[${genres.join(", ")}], eras=[${(eras ?? []).join(", ")}], market=${market}`);
 
-  const userToken = await getAccessToken();
+  let userToken: string | null = null;
+  try {
+    userToken = await getAccessToken();
+  } catch {
+    // No user auth — that's fine, server will use Client Credentials
+  }
 
   const resp = await fetch("/api/songs", {
     method: "POST",

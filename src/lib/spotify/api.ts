@@ -37,7 +37,10 @@ async function spotifyFetch<T>(endpoint: string): Promise<T> {
   return response.json();
 }
 
-/** Search for tracks (used for guess autocomplete) */
+/**
+ * Search for tracks (used for guess autocomplete).
+ * Routes through /api/search which uses Client Credentials — no user login needed.
+ */
 export async function searchTracks(
   query: string,
   limit = 5,
@@ -47,19 +50,18 @@ export async function searchTracks(
 
   const params = new URLSearchParams({
     q: query,
-    type: "track",
     limit: String(limit),
   });
   if (market) params.set("market", market);
 
-  const data = await spotifyFetch<{
-    tracks: { items: SpotifyTrack[] };
-  }>(`/search?${params.toString()}`);
+  const resp = await fetch(`/api/search?${params.toString()}`);
+  if (!resp.ok) return [];
 
-  return data.tracks.items;
+  const data = await resp.json();
+  return data.tracks ?? [];
 }
 
-/** Get the current user's profile */
+/** Get the current user's profile (requires user OAuth) */
 export async function getCurrentUser(): Promise<{
   id: string;
   display_name: string;

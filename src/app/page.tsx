@@ -38,9 +38,7 @@ export default function LandingPage() {
         if (message.includes("403") && message.includes("/me")) {
           clearTokens();
           useSpotifyStore.getState().reset();
-          setError(
-            "Your Spotify account isn't authorized for this app. It's in development mode — ask the app owner to add your Spotify email in the Spotify Developer Dashboard (User Management)."
-          );
+          setError("403");
         } else {
           setError(
             err instanceof Error ? err.message : "Connection failed. Please try again."
@@ -78,60 +76,57 @@ export default function LandingPage() {
             style={{ gap: "10px", color: "var(--text-muted)", fontSize: "14px" }}
           >
             <div className="w-4 h-4 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
-            <span>Checking connection...</span>
+            <span>Loading...</span>
           </div>
-        ) : (
+        ) : userName ? (
           <>
             <SpotifyConnect />
-
-            {userName && (
-              <button
-                onClick={handleStartGame}
-                className="btn-arcade fade-in cursor-pointer"
-                style={{ minWidth: "280px" }}
-              >
-                START GAME
-              </button>
-            )}
+            <button
+              onClick={handleStartGame}
+              className="btn-arcade fade-in cursor-pointer"
+              style={{ minWidth: "280px" }}
+            >
+              START GAME
+            </button>
           </>
+        ) : (
+          <SpotifyConnect onPlayAsGuest={handleStartGame} />
         )}
       </div>
 
-      {userName && (
-        <footer
-          className="relative z-10 text-center"
-          style={{ padding: "16px 24px 32px" }}
-        >
-          <div className="flex flex-col items-center" style={{ gap: "8px" }}>
-            <p
-              className="text-caption"
+      <footer
+        className="relative z-10 text-center"
+        style={{ padding: "16px 24px 32px" }}
+      >
+        <div className="flex flex-col items-center" style={{ gap: "8px" }}>
+          <p
+            className="text-caption"
+            style={{ color: "var(--text-muted)" }}
+          >
+            Powered by Spotify
+          </p>
+          <div
+            className="flex items-center justify-center"
+            style={{ gap: "12px", fontSize: "12px", color: "var(--text-muted)" }}
+          >
+            <a
+              href="/privacy"
+              className="hover:underline"
               style={{ color: "var(--text-muted)" }}
             >
-              Powered by Spotify
-            </p>
-            <div
-              className="flex items-center justify-center"
-              style={{ gap: "12px", fontSize: "12px", color: "var(--text-muted)" }}
+              Privacy
+            </a>
+            <span style={{ opacity: 0.3 }}>&middot;</span>
+            <a
+              href="/terms"
+              className="hover:underline"
+              style={{ color: "var(--text-muted)" }}
             >
-              <a
-                href="/privacy"
-                className="hover:underline"
-                style={{ color: "var(--text-muted)" }}
-              >
-                Privacy
-              </a>
-              <span style={{ opacity: 0.3 }}>&middot;</span>
-              <a
-                href="/terms"
-                className="hover:underline"
-                style={{ color: "var(--text-muted)" }}
-              >
-                Terms
-              </a>
-            </div>
+              Terms
+            </a>
           </div>
-        </footer>
-      )}
+        </div>
+      </footer>
     </main>
   );
 }
