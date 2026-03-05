@@ -15,8 +15,8 @@ export function HpHud() {
 
   return (
     <div className="w-full relative z-10" style={{ padding: "24px 32px 0" }}>
-      {/* Round label — centered, large, light-blue */}
-      <div className="text-center" style={{ marginBottom: "16px" }}>
+      {/* Round label — left-aligned to avoid overlapping End Game button */}
+      <div style={{ marginBottom: "16px" }}>
         <span
           className="font-display"
           style={{

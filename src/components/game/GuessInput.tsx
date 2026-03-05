@@ -67,97 +67,60 @@ export function GuessInput({ onGuess, onGiveUp, onSkip, canSkip, disabled }: Gue
   }, [currentSnippetLevel]);
 
   return (
-    <div className="w-full flex flex-col items-center" style={{ gap: "16px" }}>
-      {/* Input + Hear More row */}
+    <div className="w-full flex flex-col items-center" style={{ gap: "12px" }}>
+      {/* Search input + dropdown */}
       <div className="relative w-full" style={{ maxWidth: "600px" }}>
-        <div className="flex items-stretch" style={{ gap: "12px" }}>
-          {/* Search input */}
-          <div className="relative flex-1">
-            <input
-              ref={inputRef}
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              disabled={disabled}
-              placeholder="Start writing the artist name..."
-              className="input-surface w-full"
-              style={{ paddingRight: "72px" }}
-              autoComplete="off"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && results.length > 0) handleSelect(results[0]);
-              }}
-            />
-            {/* Hit power indicator */}
-            <span
-              className="font-display absolute top-1/2 -translate-y-1/2"
-              style={{
-                right: "20px",
-                fontSize: "16px",
-                lineHeight: 1.3,
-                color: "var(--accent)",
-                pointerEvents: "none",
-              }}
+        <div className="relative">
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            disabled={disabled}
+            placeholder="Start writing the artist name..."
+            className="input-surface w-full"
+            style={{ paddingRight: "72px" }}
+            autoComplete="off"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && results.length > 0) handleSelect(results[0]);
+            }}
+          />
+          {/* Hit power indicator */}
+          <span
+            className="font-display absolute top-1/2 -translate-y-1/2"
+            style={{
+              right: "20px",
+              fontSize: "16px",
+              lineHeight: 1.3,
+              color: "var(--accent)",
+              pointerEvents: "none",
+            }}
+          >
+            {currentHitDamage} HP
+          </span>
+          {searching && (
+            <div
+              className="absolute top-1/2 -translate-y-1/2"
+              style={{ right: "80px" }}
             >
-              {currentHitDamage} HP
-            </span>
-            {searching && (
-              <div
-                className="absolute top-1/2 -translate-y-1/2"
-                style={{ right: "80px" }}
-              >
-                <div className="w-4 h-4 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
-              </div>
-            )}
-          </div>
-
-          {/* Hear More button */}
-          {canSkip && onSkip && (
-            <button
-              onClick={onSkip}
-              className="shrink-0 flex items-center cursor-pointer transition-colors"
-              style={{
-                gap: "8px",
-                background: "var(--bg-secondary)",
-                border: "none",
-                borderRadius: "12px",
-                padding: "0 20px",
-                color: "var(--text-muted)",
-                fontSize: "14px",
-                fontWeight: 500,
-                minHeight: "56px",
-                letterSpacing: "0.02em",
-                whiteSpace: "nowrap",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = "var(--text-primary)";
-                e.currentTarget.style.background = "var(--bg-surface)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = "var(--text-muted)";
-                e.currentTarget.style.background = "var(--bg-secondary)";
-              }}
-              aria-label="Hear a longer snippet"
-            >
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
-                <path d="M6 18l8.5-6L6 6v12zm2-8.14L11.03 12 8 14.14V9.86zM16 6h2v12h-2z" />
-              </svg>
-              Hear More
-            </button>
+              <div className="w-4 h-4 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
+            </div>
           )}
         </div>
 
-        {/* Search results dropdown */}
+        {/* Search results dropdown — opens upward to avoid keyboard overlap on mobile */}
         {showResults && results.length > 0 && (
           <div
             className="absolute z-50 w-full rounded-[var(--radius-lg)] glass overflow-hidden"
             style={{
-              marginTop: "8px",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+              bottom: "calc(100% + 8px)",
+              boxShadow: "0 -8px 32px rgba(0,0,0,0.5)",
             }}
           >
             {results.map((track) => (
               <button
                 key={track.id}
+                onPointerDown={(e) => e.preventDefault()}
                 onClick={() => handleSelect(track)}
                 className="w-full flex items-center transition-colors text-left cursor-pointer"
                 style={{
@@ -175,7 +138,7 @@ export function GuessInput({ onGuess, onGiveUp, onSkip, canSkip, disabled }: Gue
                     src={track.album.images[2].url}
                     alt={`${track.album.name} cover`}
                     className="rounded object-cover flex-shrink-0"
-                    style={{ width: "48px", height: "48px" }}
+                    style={{ width: "40px", height: "40px" }}
                   />
                 )}
                 <div className="min-w-0 flex-1">
@@ -191,6 +154,41 @@ export function GuessInput({ onGuess, onGiveUp, onSkip, canSkip, disabled }: Gue
           </div>
         )}
       </div>
+
+      {/* Hear More button — full width below input */}
+      {canSkip && onSkip && (
+        <button
+          onClick={onSkip}
+          className="w-full flex items-center justify-center cursor-pointer transition-colors"
+          style={{
+            gap: "8px",
+            background: "var(--bg-secondary)",
+            border: "none",
+            borderRadius: "12px",
+            padding: "0 20px",
+            color: "var(--text-muted)",
+            fontSize: "14px",
+            fontWeight: 500,
+            minHeight: "52px",
+            maxWidth: "600px",
+            letterSpacing: "0.02em",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = "var(--text-primary)";
+            e.currentTarget.style.background = "var(--bg-surface)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = "var(--text-muted)";
+            e.currentTarget.style.background = "var(--bg-secondary)";
+          }}
+          aria-label="Hear a longer snippet"
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+            <path d="M6 18l8.5-6L6 6v12zm2-8.14L11.03 12 8 14.14V9.86zM16 6h2v12h-2z" />
+          </svg>
+          Hear More
+        </button>
+      )}
 
       {/* Give up button */}
       <button

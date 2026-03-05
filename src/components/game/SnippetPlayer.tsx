@@ -67,7 +67,7 @@ export function SnippetPlayer({ isPlaying, onPlay }: SnippetPlayerProps) {
             cy={center}
             r={radius}
             fill="none"
-            stroke="var(--bg-surface)"
+            stroke="rgba(255,255,255,0.12)"
             strokeWidth="4"
           />
           <circle
@@ -88,11 +88,15 @@ export function SnippetPlayer({ isPlaying, onPlay }: SnippetPlayerProps) {
         </svg>
 
         <div
-          className="absolute inset-0 flex flex-col items-center justify-center"
+          className="absolute flex flex-col items-center justify-center"
           style={{
+            width: "92px",
+            height: "92px",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
             background: "var(--bg-secondary)",
             borderRadius: "50%",
-            margin: "6px",
           }}
         >
           {isPlaying ? (
