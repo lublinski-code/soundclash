@@ -641,10 +641,10 @@ input[type="range"]::-moz-range-thumb {
   font-size: 14px;
   color: var(--text-primary);
   background: var(--bg-secondary);
-  border: none;
+  border: 1.5px solid transparent;
   border-radius: 16px;
   outline: none;
-  transition: background 150ms ease-out;
+  transition: background 150ms ease-out, border-color 150ms ease-out, box-shadow 150ms ease-out;
 }
 
 .input-surface::placeholder {
@@ -653,6 +653,8 @@ input[type="range"]::-moz-range-thumb {
 
 .input-surface:focus {
   background: var(--bg-surface);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
 }
 
 /* ═══════════════════════════════════════════════════════════

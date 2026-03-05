@@ -111,10 +111,12 @@ export function GuessInput({ onGuess, onGiveUp, onSkip, canSkip, disabled }: Gue
         {/* Search results dropdown — opens upward to avoid keyboard overlap on mobile */}
         {showResults && results.length > 0 && (
           <div
-            className="absolute z-50 w-full rounded-[var(--radius-lg)] glass overflow-hidden"
+            className="absolute z-50 w-full rounded-[var(--radius-lg)] glass"
             style={{
               bottom: "calc(100% + 8px)",
               boxShadow: "0 -8px 32px rgba(0,0,0,0.5)",
+              maxHeight: "280px",
+              overflowY: "auto",
             }}
           >
             {results.map((track) => (
