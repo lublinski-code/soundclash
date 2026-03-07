@@ -355,8 +355,8 @@ function toResponseTrack(t: RawTrack, previewUrl: string) {
 }
 
 /**
- * Quick mode: search a handful of artists, return the first N tracks
- * that already have a preview_url. No batch fetch, no iTunes — fast.
+ * Quick mode: search a handful of artists, return the first N tracks with previews.
+ * Uses preview_url from search results first, falls back to iTunes for the small batch.
  */
 async function handleQuickFetch(
   genres: string[],
@@ -367,13 +367,16 @@ async function handleQuickFetch(
   const ccToken = await getClientCredentialsToken();
   const yearFilter = buildYearFilter(eras);
   const popularityFloor = yearFilter ? 15 : 50;
-  const collected: RawTrack[] = [];
+  // Collect more candidates than needed so iTunes fallback has material to work with
+  const targetCandidates = quickCount * 5;
+  const candidates: RawTrack[] = [];
   const seenIds = new Set<string>();
 
   for (const genre of genres) {
-    const artists = shuffle(GENRE_ARTISTS[genre] ?? []).slice(0, 3);
+    // Try up to 6 artists to ensure enough candidates even when preview_url is missing
+    const artists = shuffle(GENRE_ARTISTS[genre] ?? []).slice(0, 6);
     for (const artist of artists) {
-      if (collected.length >= quickCount) break;
+      if (candidates.length >= targetCandidates) break;
 
       const offset = Math.floor(Math.random() * 5);
       const query = `artist:${artist}${yearFilter}`;
@@ -381,8 +384,8 @@ async function handleQuickFetch(
 
       const normalQ = artist.toLowerCase().replace(/[^a-z0-9]/g, "");
       for (const t of tracks) {
-        if (collected.length >= quickCount) break;
-        if (seenIds.has(t.id) || !t.preview_url) continue;
+        if (candidates.length >= targetCandidates) break;
+        if (seenIds.has(t.id)) continue;
         if (!isValidTrack(t, popularityFloor)) continue;
         const matchesArtist = t.artists.some(a => {
           const normalA = a.name.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -390,15 +393,35 @@ async function handleQuickFetch(
         });
         if (!matchesArtist) continue;
         seenIds.add(t.id);
-        collected.push(t);
+        candidates.push(t);
       }
     }
-    if (collected.length >= quickCount) break;
+    if (candidates.length >= targetCandidates) break;
   }
 
-  console.log(`[API/songs] Quick mode: found ${collected.length}/${quickCount} tracks`);
+  // Build preview map from embedded preview_url first
+  const previewMap = new Map<string, string>();
+  for (const t of candidates) {
+    if (t.preview_url) previewMap.set(t.id, t.preview_url);
+  }
 
-  const result = shuffle(collected).map(t => toResponseTrack(t, t.preview_url!));
+  // iTunes fallback for tracks missing preview_url (fast: parallel by artist)
+  const missing = candidates.filter(t => !previewMap.has(t.id));
+  if (missing.length > 0) {
+    console.log(`[API/songs] Quick mode: iTunes fallback for ${missing.length} tracks`);
+    const itunesPreviews = await enrichWithItunesPreviews(missing);
+    for (const [id, url] of itunesPreviews) {
+      previewMap.set(id, url);
+    }
+  }
+
+  const withPreviews = candidates.filter(t => previewMap.has(t.id));
+  console.log(`[API/songs] Quick mode: ${withPreviews.length} tracks with previews from ${candidates.length} candidates`);
+
+  const result = shuffle(withPreviews)
+    .slice(0, quickCount)
+    .map(t => toResponseTrack(t, previewMap.get(t.id)!));
+
   return NextResponse.json({ tracks: result });
 }
 
