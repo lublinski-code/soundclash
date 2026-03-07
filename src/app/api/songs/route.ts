@@ -337,21 +337,93 @@ async function enrichWithItunesPreviews(tracks: RawTrack[]): Promise<Map<string,
   return previewMap;
 }
 
+function toResponseTrack(t: RawTrack, previewUrl: string) {
+  return {
+    id: t.id,
+    name: t.name,
+    artists: t.artists.map(a => ({ id: a.id, name: a.name })),
+    album: {
+      id: t.album.id,
+      name: t.album.name,
+      images: t.album.images,
+    },
+    uri: t.uri,
+    duration_ms: t.duration_ms,
+    previewUrl,
+    spotifyUrl: t.external_urls?.spotify ?? `https://open.spotify.com/track/${t.id}`,
+  };
+}
+
+/**
+ * Quick mode: search a handful of artists, return the first N tracks
+ * that already have a preview_url. No batch fetch, no iTunes — fast.
+ */
+async function handleQuickFetch(
+  genres: string[],
+  eras: string[],
+  market: string,
+  quickCount: number
+) {
+  const ccToken = await getClientCredentialsToken();
+  const yearFilter = buildYearFilter(eras);
+  const popularityFloor = yearFilter ? 15 : 50;
+  const collected: RawTrack[] = [];
+  const seenIds = new Set<string>();
+
+  for (const genre of genres) {
+    const artists = shuffle(GENRE_ARTISTS[genre] ?? []).slice(0, 3);
+    for (const artist of artists) {
+      if (collected.length >= quickCount) break;
+
+      const offset = Math.floor(Math.random() * 5);
+      const query = `artist:${artist}${yearFilter}`;
+      const tracks = await searchForTracks(query, ccToken, 10, offset, market);
+
+      const normalQ = artist.toLowerCase().replace(/[^a-z0-9]/g, "");
+      for (const t of tracks) {
+        if (collected.length >= quickCount) break;
+        if (seenIds.has(t.id) || !t.preview_url) continue;
+        if (!isValidTrack(t, popularityFloor)) continue;
+        const matchesArtist = t.artists.some(a => {
+          const normalA = a.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+          return normalA.includes(normalQ) || normalQ.includes(normalA);
+        });
+        if (!matchesArtist) continue;
+        seenIds.add(t.id);
+        collected.push(t);
+      }
+    }
+    if (collected.length >= quickCount) break;
+  }
+
+  console.log(`[API/songs] Quick mode: found ${collected.length}/${quickCount} tracks`);
+
+  const result = shuffle(collected).map(t => toResponseTrack(t, t.preview_url!));
+  return NextResponse.json({ tracks: result });
+}
+
 export async function POST(request: Request) {
   try {
-    const { genres, eras, market, userToken } = (await request.json()) as {
+    const { genres, eras, market, userToken, quick, quickCount } = (await request.json()) as {
       genres: string[];
       eras: string[];
       market: string;
       userToken?: string;
+      quick?: boolean;
+      quickCount?: number;
     };
 
     if (!genres?.length) {
       return NextResponse.json({ error: "No genres provided" }, { status: 400 });
     }
 
-    const ccToken = await getClientCredentialsToken();
     const mkt = market || "US";
+
+    if (quick) {
+      return handleQuickFetch(genres, eras ?? [], mkt, quickCount ?? 3);
+    }
+
+    const ccToken = await getClientCredentialsToken();
     const yearFilter = buildYearFilter(eras);
     const popularityFloor = yearFilter ? 15 : 65;
 
@@ -441,20 +513,7 @@ export async function POST(request: Request) {
 
     const result = allTracks
       .filter(t => previewMap.has(t.id))
-      .map(t => ({
-        id: t.id,
-        name: t.name,
-        artists: t.artists.map(a => ({ id: a.id, name: a.name })),
-        album: {
-          id: t.album.id,
-          name: t.album.name,
-          images: t.album.images,
-        },
-        uri: t.uri,
-        duration_ms: t.duration_ms,
-        previewUrl: previewMap.get(t.id) as string,
-        spotifyUrl: t.external_urls?.spotify ?? `https://open.spotify.com/track/${t.id}`,
-      }));
+      .map(t => toResponseTrack(t, previewMap.get(t.id) as string));
 
     return NextResponse.json({ tracks: result });
   } catch (err) {

@@ -30,6 +30,49 @@ type ServerTrack = {
   spotifyUrl: string;
 };
 
+function mapServerTracks(serverTracks: ServerTrack[]): SpotifyTrack[] {
+  return serverTracks.map(st => ({
+    id: st.id,
+    name: st.name,
+    artists: st.artists,
+    album: st.album,
+    uri: st.uri,
+    duration_ms: st.duration_ms,
+    previewUrl: st.previewUrl,
+    spotifyUrl: st.spotifyUrl,
+  }));
+}
+
+/**
+ * Fast fetch: grabs a small number of songs quickly (no iTunes, no batch preview fetch).
+ * Used to start the game immediately while the full pool loads in the background.
+ */
+export async function buildQuickSong(
+  config: GameConfig,
+  count = 3
+): Promise<SpotifyTrack[]> {
+  const { genres, eras, market } = config;
+  if (genres.length === 0) return [];
+
+  console.log(`[SongPool] Quick fetch: ${count} songs for genres=[${genres.join(", ")}]`);
+
+  const resp = await fetch("/api/songs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ genres, eras, market, quick: true, quickCount: count }),
+  });
+
+  if (!resp.ok) {
+    const errData = await resp.json().catch(() => ({}));
+    throw new Error(errData.error || `Quick song fetch failed: ${resp.status}`);
+  }
+
+  const { tracks: serverTracks } = (await resp.json()) as { tracks: ServerTrack[] };
+  console.log(`[SongPool] Quick fetch returned ${serverTracks.length} tracks`);
+
+  return mapServerTracks(serverTracks);
+}
+
 export async function buildSongPool(
   config: GameConfig,
   targetSize = 60
@@ -61,17 +104,7 @@ export async function buildSongPool(
 
   if (serverTracks.length === 0) return [];
 
-  const pool: SpotifyTrack[] = serverTracks.map(st => ({
-    id: st.id,
-    name: st.name,
-    artists: st.artists,
-    album: st.album,
-    uri: st.uri,
-    duration_ms: st.duration_ms,
-    previewUrl: st.previewUrl,
-    spotifyUrl: st.spotifyUrl,
-  }));
-
+  const pool = mapServerTracks(serverTracks);
   const result = shuffle(pool).slice(0, targetSize);
   console.log(`[SongPool] Final pool: ${result.length} tracks`);
 

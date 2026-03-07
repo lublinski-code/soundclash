@@ -16,6 +16,7 @@ export type GameState = {
 
 export type GameAction =
   | { type: "START_GAME"; songPool: SpotifyTrack[] }
+  | { type: "ADD_SONGS"; songs: SpotifyTrack[] }
   | { type: "SHOW_VS" }
   | { type: "START_SNIPPET" }
   | { type: "NEXT_SNIPPET" }
@@ -150,6 +151,10 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
           { ...state.teams[1], hp: state.config.startingHp, activeIndex: 0 },
         ],
       };
+    }
+
+    case "ADD_SONGS": {
+      return { ...state, songPool: [...state.songPool, ...action.songs] };
     }
 
     case "SHOW_VS": {

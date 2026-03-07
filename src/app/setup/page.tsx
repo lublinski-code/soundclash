@@ -7,7 +7,7 @@ import { GenrePicker } from "@/components/setup/GenrePicker";
 import { EraPicker } from "@/components/setup/EraPicker";
 import { GameConfigPanel } from "@/components/setup/GameConfig";
 import { useGameStore } from "@/store/gameStore";
-import { buildSongPool } from "@/lib/spotify/songPool";
+import { buildSongPool, buildQuickSong } from "@/lib/spotify/songPool";
 import { isAuthenticated } from "@/lib/spotify/auth";
 import { getRandomGenres } from "@/lib/game/constants";
 
@@ -43,18 +43,29 @@ export default function SetupPage() {
     setError(null);
 
     try {
-      const songPool = await buildSongPool(config);
+      // Phase 1: fast fetch — grab a few songs to start immediately
+      const quickSongs = await buildQuickSong(config, 3);
 
-      if (songPool.length < 5) {
-        setError(
-          `Only found ${songPool.length} songs. Try selecting more genres or removing era filters.`
-        );
+      if (quickSongs.length === 0) {
+        setError("Couldn't load any songs. Try selecting more genres or removing era filters.");
         setLoading(false);
         return;
       }
 
-      dispatch({ type: "START_GAME", songPool });
+      dispatch({ type: "START_GAME", songPool: quickSongs });
       router.push("/game");
+
+      // Phase 2: background full fetch (fire and forget after navigate)
+      buildSongPool(config, 60)
+        .then((songs) => {
+          const alreadyIn = new Set(quickSongs.map(s => s.id));
+          const newSongs = songs.filter(s => !alreadyIn.has(s.id));
+          if (newSongs.length > 0) {
+            useGameStore.getState().dispatch({ type: "ADD_SONGS", songs: newSongs });
+            console.log(`[Setup] Background pool added ${newSongs.length} songs`);
+          }
+        })
+        .catch((err) => console.warn("[Setup] Background pool fetch failed:", err));
     } catch (err) {
       console.error("Song pool build failed:", err);
       const msg = err instanceof Error ? err.message : "Failed to load songs";
