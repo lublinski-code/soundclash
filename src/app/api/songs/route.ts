@@ -9,16 +9,36 @@ const BASE = "https://api.spotify.com/v1";
 
 const GENRE_ARTISTS: Record<string, string[]> = {
   rock: [
+    // Spans all decades so any era filter finds material
     "Queen", "Led Zeppelin", "AC/DC", "The Rolling Stones", "Nirvana",
     "Foo Fighters", "Red Hot Chili Peppers", "U2", "Bon Jovi", "Aerosmith",
     "The Beatles", "Pink Floyd", "Guns N' Roses", "Green Day", "Coldplay",
     "Muse", "Oasis", "The Who", "Linkin Park", "Arctic Monkeys",
+    // 80s rock coverage
+    "Journey", "Def Leppard", "Van Halen", "Scorpions", "Foreigner",
+    "Dire Straits", "Bryan Adams", "ZZ Top", "Heart", "Pat Benatar",
+    "Toto", "REO Speedwagon", "Whitesnake", "Boston", "Styx",
+    "The Police", "Tom Petty", "Bruce Springsteen", "Billy Joel", "Fleetwood Mac",
+    // 90s/00s rock coverage
+    "Pearl Jam", "Weezer", "Smashing Pumpkins", "Stone Temple Pilots",
+    "Creed", "3 Doors Down", "Nickelback", "The Killers", "Kings of Leon",
+    "Imagine Dragons", "Twenty One Pilots", "Fall Out Boy", "Paramore",
   ],
   pop: [
     "Taylor Swift", "Ed Sheeran", "Adele", "Bruno Mars", "Dua Lipa",
     "The Weeknd", "Billie Eilish", "Justin Bieber", "Ariana Grande", "Lady Gaga",
     "Rihanna", "Katy Perry", "Beyoncé", "Shakira", "Michael Jackson",
     "Madonna", "Olivia Rodrigo", "Harry Styles", "Doja Cat", "SZA",
+    // 80s pop
+    "Prince", "Whitney Houston", "George Michael", "Phil Collins", "Cyndi Lauper",
+    "Duran Duran", "a-ha", "Tears for Fears", "Eurythmics", "Wham!",
+    "Lionel Richie", "Culture Club", "Hall & Oates", "Rick Astley", "Pet Shop Boys",
+    // 90s pop
+    "Backstreet Boys", "NSYNC", "Spice Girls", "TLC", "Britney Spears",
+    "Christina Aguilera", "Mariah Carey", "Celine Dion", "Alanis Morissette",
+    // 00s/10s pop
+    "Amy Winehouse", "Lorde", "Miley Cyrus", "Sia", "Sam Smith",
+    "Elton John", "Robbie Williams", "Coldplay", "OneRepublic",
   ],
   metal: [
     "Metallica", "Iron Maiden", "Black Sabbath", "Slayer", "Megadeth",
@@ -37,22 +57,30 @@ const GENRE_ARTISTS: Record<string, string[]> = {
     "Tupac", "Notorious B.I.G.", "Snoop Dogg", "Travis Scott", "J. Cole",
     "Nas", "Lil Wayne", "50 Cent", "Post Malone", "Dr. Dre",
     "OutKast", "Nicki Minaj", "Cardi B", "Tyler, The Creator", "A$AP Rocky",
+    // 80s/90s hip-hop
+    "Run-D.M.C.", "Beastie Boys", "N.W.A", "LL Cool J", "Public Enemy",
+    "Wu-Tang Clan", "A Tribe Called Quest", "De La Soul", "Ice Cube", "DMX",
+    "Missy Elliott", "Lauryn Hill", "Busta Rhymes", "Method Man",
   ],
   dance: [
     "Calvin Harris", "David Guetta", "Avicii", "Tiësto", "Marshmello",
     "Martin Garrix", "Kygo", "Zedd", "The Chainsmokers", "Major Lazer",
     "Clean Bandit", "Disclosure", "Daft Punk", "Robin Schulz", "Joel Corry",
+    "Swedish House Mafia", "Armin van Buuren", "Alesso", "Diplo", "DJ Snake",
   ],
   electronic: [
     "Daft Punk", "Deadmau5", "Skrillex", "Aphex Twin", "The Prodigy",
     "Chemical Brothers", "Kraftwerk", "Depeche Mode", "Fatboy Slim", "Moby",
     "Flume", "ODESZA", "Bonobo", "Justice", "Caribou",
+    "New Order", "Pet Shop Boys", "Erasure", "Gary Numan", "Orbital",
   ],
   "r-n-b": [
     "Usher", "Alicia Keys", "Frank Ocean", "The Weeknd", "SZA",
     "Beyoncé", "Chris Brown", "Ne-Yo", "John Legend", "H.E.R.",
     "Miguel", "Khalid", "Daniel Caesar", "Lauryn Hill", "Mary J. Blige",
     "Whitney Houston", "Marvin Gaye", "Stevie Wonder", "D'Angelo", "TLC",
+    "Boyz II Men", "R. Kelly", "Aaliyah", "Toni Braxton", "Janet Jackson",
+    "Luther Vandross", "Anita Baker", "Bobby Brown", "New Edition",
   ],
   jazz: [
     "Miles Davis", "John Coltrane", "Louis Armstrong", "Duke Ellington",
@@ -68,6 +96,8 @@ const GENRE_ARTISTS: Record<string, string[]> = {
     "Carrie Underwood", "Blake Shelton", "Keith Urban", "Tim McGraw",
     "Shania Twain", "Willie Nelson", "Chris Stapleton", "Zach Bryan",
     "Jason Aldean", "Kenny Chesney", "George Strait",
+    "Garth Brooks", "Alan Jackson", "Reba McEntire", "Hank Williams",
+    "Brooks & Dunn", "Toby Keith", "Brad Paisley", "Alabama",
   ],
   blues: [
     "B.B. King", "Muddy Waters", "Stevie Ray Vaughan", "Robert Johnson",
@@ -87,6 +117,7 @@ const GENRE_ARTISTS: Record<string, string[]> = {
     "Aretha Franklin", "Marvin Gaye", "Stevie Wonder", "Ray Charles",
     "James Brown", "Otis Redding", "Al Green", "Sam Cooke",
     "Curtis Mayfield", "Bill Withers", "Isaac Hayes", "Leon Bridges",
+    "Tina Turner", "Diana Ross", "Gladys Knight", "Smokey Robinson",
   ],
   indie: [
     "Arctic Monkeys", "Tame Impala", "Radiohead", "The Strokes",
@@ -113,6 +144,7 @@ const GENRE_ARTISTS: Record<string, string[]> = {
     "Radiohead", "R.E.M.", "The Cure", "Depeche Mode", "The Smiths",
     "Pixies", "Joy Division", "New Order", "Talking Heads", "Blur",
     "Beck", "Cage The Elephant", "alt-J", "Gorillaz", "Placebo",
+    "Nine Inch Nails", "The Cranberries", "Garbage", "Sonic Youth", "Bjork",
   ],
   grunge: [
     "Nirvana", "Pearl Jam", "Soundgarden", "Alice In Chains",
@@ -337,15 +369,14 @@ async function handleQuickFetch(
 ) {
   const ccToken = await getClientCredentialsToken();
   const yearFilter = buildYearFilter(eras);
-  const popularityFloor = yearFilter ? 55 : 60;
+  const popularityFloor = yearFilter ? 40 : 50;
   // Collect more candidates than needed so iTunes fallback has material to work with
   const targetCandidates = quickCount * 5;
   const candidates: RawTrack[] = [];
   const seenIds = new Set<string>();
 
   for (const genre of genres) {
-    // Try up to 6 artists to ensure enough candidates even when preview_url is missing
-    const artists = shuffle(GENRE_ARTISTS[genre] ?? []).slice(0, 6);
+    const artists = shuffle(GENRE_ARTISTS[genre] ?? []).slice(0, 12);
     for (const artist of artists) {
       if (candidates.length >= targetCandidates) break;
 
@@ -419,13 +450,15 @@ export async function POST(request: Request) {
 
     const ccToken = await getClientCredentialsToken();
     const yearFilter = buildYearFilter(eras);
-    // Older songs score lower on Spotify popularity (recency-weighted), so we
-    // use a reduced but still meaningful floor for era-filtered pools.
-    const popularityFloor = yearFilter ? 55 : 70;
+    // Spotify popularity is recency-weighted, so older hits score lower.
+    // Genre pollution is prevented by artist verification, not the floor.
+    const popularityFloor = yearFilter ? 40 : 60;
 
     let allTracks: RawTrack[] = [];
 
-    // Artist-based search with optional year filter for era selection
+    const MIN_POOL_SIZE = 30;
+
+    // Search all genre artists with the year filter
     for (const genre of genres) {
       const artists = GENRE_ARTISTS[genre] ?? [];
       const shuffled = shuffle(artists);
@@ -456,9 +489,42 @@ export async function POST(request: Request) {
 
     // Filter
     allTracks = allTracks.filter(t => isValidTrack(t, popularityFloor));
+    console.log(`[API/songs] After filtering: ${allTracks.length} tracks`);
 
-    // Artist diversity cap
-    const maxPerArtist = 2;
+    // Fallback: if pool is too thin and we used a year filter, re-search
+    // without it to fill the gap (still genre-correct via artist lists)
+    if (allTracks.length < MIN_POOL_SIZE && yearFilter) {
+      console.log(`[API/songs] Pool too small (${allTracks.length}), running fallback without year filter`);
+      const existingIds = new Set(allTracks.map(t => t.id));
+
+      for (const genre of genres) {
+        const artists = shuffle(GENRE_ARTISTS[genre] ?? []);
+        for (const artist of artists) {
+          if (allTracks.length >= MIN_POOL_SIZE * 2) break;
+          const query = `artist:${artist}`;
+          const tracks = await searchForTracks(query, ccToken, 20, 0, mkt);
+
+          const normalQ = artist.toLowerCase().replace(/[^a-z0-9]/g, "");
+          const verified = tracks.filter(t => {
+            if (existingIds.has(t.id)) return false;
+            if (!isValidTrack(t, popularityFloor)) return false;
+            return t.artists.some(a => {
+              const normalA = a.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+              return normalA.includes(normalQ) || normalQ.includes(normalA);
+            });
+          });
+          for (const t of verified) {
+            existingIds.add(t.id);
+            allTracks.push(t);
+          }
+        }
+        if (allTracks.length >= MIN_POOL_SIZE * 2) break;
+      }
+      console.log(`[API/songs] After fallback: ${allTracks.length} tracks`);
+    }
+
+    // Artist diversity cap — scale with pool size to avoid starvation
+    const maxPerArtist = allTracks.length < MIN_POOL_SIZE ? 5 : 3;
     const artistCount: Record<string, number> = {};
     allTracks = shuffle(allTracks).filter(t => {
       const mainArtist = t.artists[0]?.name ?? "unknown";
@@ -466,8 +532,7 @@ export async function POST(request: Request) {
       return artistCount[mainArtist] <= maxPerArtist;
     });
 
-    // Sort by popularity descending so the most recognisable songs survive the
-    // trim, then shuffle within equal-popularity tiers to add variety.
+    // Sort by popularity descending so the most recognisable songs survive the trim
     allTracks = allTracks
       .sort((a, b) => b.popularity - a.popularity)
       .slice(0, 200);
