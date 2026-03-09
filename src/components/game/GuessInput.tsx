@@ -210,7 +210,8 @@ export function GuessInput({ onGuess, onGiveUp, onSkip, canSkip, disabled }: Gue
       <button
         onClick={onGiveUp}
         disabled={disabled}
-        className="group flex items-center gap-2 cursor-pointer rounded-md px-4 py-2 border-none bg-transparent transition-colors duration-150 hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-[var(--ring)] focus-visible:outline-offset-2"
+        className="group flex items-center gap-2 cursor-pointer rounded-md border-none bg-transparent transition-colors duration-150 hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-[var(--ring)] focus-visible:outline-offset-2"
+        style={{ padding: "20px" }}
         aria-label={`Give up — lose ${giveUpDamage} HP`}
       >
         <span

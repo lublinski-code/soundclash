@@ -3,12 +3,9 @@ import { getClientCredentialsToken } from "@/lib/spotify/clientToken";
 
 const BASE = "https://api.spotify.com/v1";
 
-const ERA_PLAYLISTS: Record<string, string> = {
-  "1980": "37i9dQZF1DX4UtSsGT1Sbe", // All Out 80s
-  "1990": "37i9dQZF1DXbTxeAdrVG2l", // All Out 90s
-  "2000": "37i9dQZF1DX4o1oenSJRJd", // All Out 00s
-  "2010": "37i9dQZF1DX5Ejj0EkURtP", // All Out 10s
-};
+// Era playlists removed — they are genre-agnostic ("All Out 80s" includes
+// latin, pop, disco, etc.) which pollutes genre-specific pools. Eras are now
+// handled purely via the year: filter on artist-based searches.
 
 const GENRE_ARTISTS: Record<string, string[]> = {
   rock: [
@@ -203,32 +200,6 @@ function buildYearFilter(eras: string[]): string {
   const starts = eras.map(e => parseInt(e, 10)).filter(n => !isNaN(n));
   if (!starts.length) return "";
   return ` year:${Math.min(...starts)}-${Math.max(...starts) + 9}`;
-}
-
-async function fetchPlaylistTracks(
-  playlistId: string,
-  token: string,
-  market: string
-): Promise<RawTrack[]> {
-  const tracks: RawTrack[] = [];
-  let offset = 0;
-  const limit = 50;
-
-  while (offset < 200) {
-    const data = await spFetch<{
-      items: { track: RawTrack }[];
-      total: number;
-    }>(`/playlists/${playlistId}/tracks?limit=${limit}&offset=${offset}&market=${market}&fields=items(track(id,name,artists(id,name),album(id,name,album_type,images),uri,duration_ms,popularity,preview_url,external_urls)),total`, token);
-
-    if (!data?.items) break;
-    for (const item of data.items) {
-      if (item.track) tracks.push(item.track);
-    }
-    if (offset + limit >= data.total) break;
-    offset += limit;
-  }
-
-  return tracks;
 }
 
 async function searchForTracks(
@@ -454,18 +425,7 @@ export async function POST(request: Request) {
 
     let allTracks: RawTrack[] = [];
 
-    // Strategy 1: curated era playlists
-    if (eras?.length) {
-      for (const era of eras) {
-        const playlistId = ERA_PLAYLISTS[era];
-        if (playlistId) {
-          const tracks = await fetchPlaylistTracks(playlistId, ccToken, mkt);
-          allTracks.push(...tracks);
-        }
-      }
-    }
-
-    // Strategy 2: artist-based search (always run as primary or fallback)
+    // Artist-based search with optional year filter for era selection
     for (const genre of genres) {
       const artists = GENRE_ARTISTS[genre] ?? [];
       const shuffled = shuffle(artists);
@@ -473,7 +433,7 @@ export async function POST(request: Request) {
       for (const artist of shuffled) {
         const offset = Math.floor(Math.random() * 5);
         const query = `artist:${artist}${yearFilter}`;
-        const tracks = await searchForTracks(query, ccToken, 10, offset, mkt);
+        const tracks = await searchForTracks(query, ccToken, 20, offset, mkt);
 
         const normalQ = artist.toLowerCase().replace(/[^a-z0-9]/g, "");
         const verified = tracks.filter(t =>
