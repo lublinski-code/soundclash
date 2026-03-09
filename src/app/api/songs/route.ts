@@ -366,7 +366,7 @@ async function handleQuickFetch(
 ) {
   const ccToken = await getClientCredentialsToken();
   const yearFilter = buildYearFilter(eras);
-  const popularityFloor = yearFilter ? 45 : 50;
+  const popularityFloor = yearFilter ? 55 : 60;
   // Collect more candidates than needed so iTunes fallback has material to work with
   const targetCandidates = quickCount * 5;
   const candidates: RawTrack[] = [];
@@ -450,7 +450,7 @@ export async function POST(request: Request) {
     const yearFilter = buildYearFilter(eras);
     // Older songs score lower on Spotify popularity (recency-weighted), so we
     // use a reduced but still meaningful floor for era-filtered pools.
-    const popularityFloor = yearFilter ? 45 : 65;
+    const popularityFloor = yearFilter ? 55 : 70;
 
     let allTracks: RawTrack[] = [];
 

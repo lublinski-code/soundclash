@@ -210,24 +210,17 @@ export function GuessInput({ onGuess, onGiveUp, onSkip, canSkip, disabled }: Gue
       <button
         onClick={onGiveUp}
         disabled={disabled}
-        className="group flex items-center cursor-pointer rounded-md transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[rgba(255,255,255,0.05)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--ring)] focus-visible:outline-offset-2"
-        style={{
-          gap: "8px",
-          background: "transparent",
-          border: "none",
-          padding: "8px 16px",
-        }}
+        className="group flex items-center gap-2 cursor-pointer rounded-md px-4 py-2 border-none bg-transparent transition-colors duration-150 hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-[var(--ring)] focus-visible:outline-offset-2"
         aria-label={`Give up — lose ${giveUpDamage} HP`}
       >
         <span
-          className="text-body-2 transition-colors group-hover:text-[var(--text-secondary)]"
-          style={{ color: "var(--text-muted)", fontWeight: 500 }}
+          className="text-body-2 font-medium text-[var(--text-muted)] transition-colors duration-150 group-hover:text-[var(--text-secondary)]"
         >
           I Give up
         </span>
         <span
-          className="font-display transition-colors group-hover:text-[var(--destructive-hover)]"
-          style={{ fontSize: "16px", lineHeight: 1.3, color: "var(--destructive)" }}
+          className="font-display text-[var(--destructive)] transition-colors duration-150 group-hover:text-[var(--destructive-hover)]"
+          style={{ fontSize: "16px", lineHeight: 1.3 }}
         >
           -{giveUpDamage} HP
         </span>
