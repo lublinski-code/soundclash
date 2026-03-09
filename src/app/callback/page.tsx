@@ -15,9 +15,20 @@ function CallbackHandler() {
       try {
         const code = searchParams.get("code");
         const errorParam = searchParams.get("error");
+        const errorDescription = searchParams.get("error_description");
 
         if (errorParam) {
-          setError(`Spotify authorization denied: ${errorParam}`);
+          if (errorParam === "access_denied") {
+            setError(
+              errorDescription?.toLowerCase().includes("quota")
+                ? "This Spotify app has reached its user limit. The developer needs to apply for Extended Quota Mode in the Spotify Developer Dashboard."
+                : "Your Spotify account is not authorized for this app. The app owner needs to add your Spotify email to the allowlist in the Spotify Developer Dashboard (Apps in development mode are limited to 25 registered users)."
+            );
+          } else {
+            setError(
+              `Spotify authorization failed: ${errorDescription ?? errorParam}`
+            );
+          }
           return;
         }
 

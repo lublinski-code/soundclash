@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Space_Grotesk } from "next/font/google";
 import localFont from "next/font/local";
+import { Analytics } from "@vercel/analytics/react";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -48,6 +49,7 @@ export default function RootLayout({
         <div className="relative z-10 min-h-screen min-h-dvh flex flex-col">
           {children}
         </div>
+        <Analytics />
       </body>
     </html>
   );

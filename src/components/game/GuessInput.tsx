@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { searchTracks } from "@/lib/spotify/api";
 import { useGameStore } from "@/store/gameStore";
 import type { SpotifyTrack } from "@/lib/game/types";
 
@@ -29,15 +28,22 @@ export function GuessInput({ onGuess, onGiveUp, onSkip, canSkip, disabled }: Gue
     async (q: string) => {
       if (q.trim().length < 2) {
         setResults([]);
+        setShowResults(false);
         return;
       }
       setSearching(true);
       try {
-        const tracks = await searchTracks(q, 6, config.market);
+        const params = new URLSearchParams({ q, limit: "6" });
+        if (config.market) params.set("market", config.market);
+        const res = await fetch(`/api/search?${params.toString()}`);
+        if (!res.ok) throw new Error("Search request failed");
+        const data = await res.json();
+        const tracks: SpotifyTrack[] = data.tracks ?? [];
         setResults(tracks);
-        setShowResults(true);
+        setShowResults(tracks.length > 0);
       } catch {
         setResults([]);
+        setShowResults(false);
       } finally {
         setSearching(false);
       }
@@ -83,8 +89,14 @@ export function GuessInput({ onGuess, onGiveUp, onSkip, canSkip, disabled }: Gue
               className="input-surface w-full"
               style={{ paddingRight: "72px" }}
               autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              inputMode="text"
               onKeyDown={(e) => {
-                if (e.key === "Enter" && results.length > 0) handleSelect(results[0]);
+                if (e.key === "Enter" && !e.isComposing && results.length > 0) {
+                  handleSelect(results[0]);
+                }
               }}
             />
             {/* Hit power indicator */}
@@ -159,6 +171,7 @@ export function GuessInput({ onGuess, onGiveUp, onSkip, canSkip, disabled }: Gue
               <button
                 key={track.id}
                 onPointerDown={(e) => e.preventDefault()}
+                onTouchStart={(e) => e.preventDefault()}
                 onClick={() => handleSelect(track)}
                 className="w-full flex items-center transition-colors text-left cursor-pointer"
                 style={{
