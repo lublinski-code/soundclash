@@ -94,7 +94,7 @@ export function GuessInput({ onGuess, onGiveUp, onSkip, canSkip, disabled }: Gue
               spellCheck={false}
               inputMode="text"
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.isComposing && results.length > 0) {
+                if (e.key === "Enter" && !e.nativeEvent.isComposing && results.length > 0) {
                   handleSelect(results[0]);
                 }
               }}
