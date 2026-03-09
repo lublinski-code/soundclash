@@ -366,7 +366,7 @@ async function handleQuickFetch(
 ) {
   const ccToken = await getClientCredentialsToken();
   const yearFilter = buildYearFilter(eras);
-  const popularityFloor = yearFilter ? 15 : 50;
+  const popularityFloor = yearFilter ? 45 : 50;
   // Collect more candidates than needed so iTunes fallback has material to work with
   const targetCandidates = quickCount * 5;
   const candidates: RawTrack[] = [];
@@ -448,7 +448,9 @@ export async function POST(request: Request) {
 
     const ccToken = await getClientCredentialsToken();
     const yearFilter = buildYearFilter(eras);
-    const popularityFloor = yearFilter ? 15 : 65;
+    // Older songs score lower on Spotify popularity (recency-weighted), so we
+    // use a reduced but still meaningful floor for era-filtered pools.
+    const popularityFloor = yearFilter ? 45 : 65;
 
     let allTracks: RawTrack[] = [];
 
@@ -496,7 +498,7 @@ export async function POST(request: Request) {
     allTracks = allTracks.filter(t => isValidTrack(t, popularityFloor));
 
     // Artist diversity cap
-    const maxPerArtist = 4;
+    const maxPerArtist = 2;
     const artistCount: Record<string, number> = {};
     allTracks = shuffle(allTracks).filter(t => {
       const mainArtist = t.artists[0]?.name ?? "unknown";
@@ -504,8 +506,11 @@ export async function POST(request: Request) {
       return artistCount[mainArtist] <= maxPerArtist;
     });
 
-    // Trim to 200 candidates
-    allTracks = shuffle(allTracks).slice(0, 200);
+    // Sort by popularity descending so the most recognisable songs survive the
+    // trim, then shuffle within equal-popularity tiers to add variety.
+    allTracks = allTracks
+      .sort((a, b) => b.popularity - a.popularity)
+      .slice(0, 200);
 
     // Layer 1: user token batch fetch (most reliable for Spotify preview_url)
     let previewMap = new Map<string, string>();

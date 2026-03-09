@@ -15,6 +15,37 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
+/**
+ * Reorders tracks so the same artist doesn't appear within `minGap` positions
+ * of their previous occurrence. Falls back gracefully when the pool is too
+ * small to satisfy the spacing constraint.
+ */
+function spaceArtists<T extends { artists: { name: string }[] }>(
+  tracks: T[],
+  minGap = 5
+): T[] {
+  const result: T[] = [];
+  const remaining = [...tracks];
+  const lastSeen = new Map<string, number>();
+
+  while (remaining.length > 0) {
+    const idx = result.length;
+
+    const pick = remaining.findIndex((t) => {
+      const artist = t.artists[0]?.name ?? "unknown";
+      const last = lastSeen.get(artist) ?? -Infinity;
+      return idx - last >= minGap;
+    });
+
+    const chosen = pick === -1 ? 0 : pick;
+    const [track] = remaining.splice(chosen, 1);
+    result.push(track);
+    lastSeen.set(track.artists[0]?.name ?? "unknown", idx);
+  }
+
+  return result;
+}
+
 type ServerTrack = {
   id: string;
   name: string;
@@ -105,7 +136,7 @@ export async function buildSongPool(
   if (serverTracks.length === 0) return [];
 
   const pool = mapServerTracks(serverTracks);
-  const result = shuffle(pool).slice(0, targetSize);
+  const result = spaceArtists(shuffle(pool)).slice(0, targetSize);
   console.log(`[SongPool] Final pool: ${result.length} tracks`);
 
   return result;
