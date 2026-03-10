@@ -1,0 +1,8 @@
+ITER 2: Let players guess on each second tier - don't make it a miss immediately. 
+ITER 2: In spotify there are sometimes several editions of the same song - we need to combine them when a user guess correctly but it turnes a miss because it was a different edition of the same song. 
+ITER 2: There is a bug that playes the whole song sometimes (even on 1 sec)
+ITER 2: We need to pull only known songs - I don't want the player to get a song from disc 3 of a delux edition of some demo tape recording of the artist or worse an unknown cover
+ITER 2: The last sec tier should be the full song not 30s - the penalty remains the same 25HP 
+ITER 2: Play the seconds from a random time of the song - not just the begining
+ITER 2: Make it more celebratory when a user guess a song (even on 15 sec) and keep the same clean design on a miss
+ITER 2: Add a counter or something of the rounds near the health bar

@@ -1,52 +1,70 @@
 import { NextResponse } from "next/server";
-import { getClientCredentialsToken } from "@/lib/spotify/clientToken";
 
-const BASE = "https://api.spotify.com/v1";
+const DEEZER_BASE = "https://api.deezer.com";
+
+type DeezerTrack = {
+  id: number;
+  title: string;
+  duration: number;
+  rank: number;
+  preview: string;
+  artist: { id: number; name: string };
+  album: {
+    id: number;
+    title: string;
+    cover_xl: string;
+    cover_big: string;
+    cover_medium: string;
+  };
+};
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get("q")?.trim();
     const limit = Math.min(Number(searchParams.get("limit") ?? 6), 20);
-    const market = searchParams.get("market") || undefined;
 
     if (!query) {
       return NextResponse.json({ tracks: [] });
     }
 
-    const token = await getClientCredentialsToken();
-
     const params = new URLSearchParams({
       q: query,
-      type: "track",
       limit: String(limit),
+      order: "RANKING",
     });
-    if (market) params.set("market", market);
 
-    const resp = await fetch(`${BASE}/search?${params}`, {
-      headers: { Authorization: `Bearer ${token}` },
+    const resp = await fetch(`${DEEZER_BASE}/search?${params}`, {
+      signal: AbortSignal.timeout(5000),
     });
 
     if (!resp.ok) {
-      console.warn(`[API/search] Spotify ${resp.status} for query "${query}"`);
+      console.warn(`[API/search] Deezer ${resp.status} for query "${query}"`);
       return NextResponse.json({ tracks: [] });
     }
 
     const data = await resp.json();
-    const tracks = (data.tracks?.items ?? []).map((t: Record<string, unknown>) => ({
-      id: t.id,
-      name: t.name,
-      artists: (t.artists as Array<{ id: string; name: string }>)?.map((a) => ({
-        id: a.id,
-        name: a.name,
-      })),
+    if (data.error) {
+      console.warn("[API/search] Deezer error:", data.error);
+      return NextResponse.json({ tracks: [] });
+    }
+
+    const tracks = ((data.data ?? []) as DeezerTrack[]).map((t) => ({
+      id: String(t.id),
+      name: t.title,
+      artists: [{ id: String(t.artist.id), name: t.artist.name }],
       album: {
-        id: (t.album as Record<string, unknown>)?.id,
-        name: (t.album as Record<string, unknown>)?.name,
-        images: (t.album as Record<string, unknown>)?.images,
+        id: String(t.album.id),
+        name: t.album.title,
+        images: [
+          {
+            url: t.album.cover_xl || t.album.cover_big || t.album.cover_medium,
+            width: 640,
+            height: 640,
+          },
+        ],
       },
-      uri: t.uri,
-      duration_ms: t.duration_ms,
+      duration_ms: t.duration * 1000,
     }));
 
     return NextResponse.json({ tracks });

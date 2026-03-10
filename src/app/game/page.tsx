@@ -9,8 +9,8 @@ import { GuessInput } from "@/components/game/GuessInput";
 import { DamageOverlay } from "@/components/game/DamageOverlay";
 import { AlbumReveal } from "@/components/game/AlbumReveal";
 import { KoScreen } from "@/components/game/KoScreen";
-import { playPreview, stopPreview } from "@/lib/spotify/player";
-import { replenishPool } from "@/lib/spotify/songPool";
+import { playPreview, stopPreview } from "@/lib/audio/player";
+import { replenishPool } from "@/lib/music/songPool";
 
 export default function GamePage() {
   const router = useRouter();
@@ -386,7 +386,7 @@ export default function GamePage() {
           albumArt={lastResult.albumArt}
           trackName={lastResult.trackName}
           artistName={lastResult.artistName}
-          spotifyUrl={currentSong?.spotifyUrl}
+          songUrl={currentSong?.songUrl}
           onComplete={handleAlbumComplete}
           onPlay={handleAlbumPlay}
           onPause={handleAlbumPause}

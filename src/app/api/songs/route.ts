@@ -1,31 +1,6 @@
 import { NextResponse } from "next/server";
-import { getClientCredentialsToken } from "@/lib/spotify/clientToken";
 
-const BASE = "https://api.spotify.com/v1";
-
-// Spotify genre tags for search queries — these map to Spotify's internal genre taxonomy
-const GENRE_SEARCH_TAGS: Record<string, string[]> = {
-  rock: ["rock", "classic rock", "hard rock", "arena rock", "album rock"],
-  pop: ["pop", "dance pop", "synthpop", "europop", "pop rock"],
-  metal: ["metal", "heavy metal", "thrash metal", "hard rock", "glam metal"],
-  "hip-hop": ["hip hop", "rap", "gangsta rap", "east coast hip hop", "west coast hip hop"],
-  dance: ["dance", "edm", "house", "dance pop", "eurodance"],
-  electronic: ["electronic", "electro", "synthwave", "new wave", "industrial"],
-  "r-n-b": ["r&b", "urban contemporary", "new jack swing", "soul", "quiet storm"],
-  jazz: ["jazz", "smooth jazz", "vocal jazz", "bebop", "cool jazz"],
-  classical: ["classical", "romantic era", "baroque", "classical performance"],
-  country: ["country", "classic country", "country rock", "outlaw country"],
-  blues: ["blues", "electric blues", "blues rock", "soul blues"],
-  reggae: ["reggae", "roots reggae", "dancehall", "ska"],
-  punk: ["punk", "punk rock", "pop punk", "hardcore punk", "skate punk"],
-  soul: ["soul", "motown", "northern soul", "southern soul", "neo soul"],
-  indie: ["indie rock", "indie pop", "indie", "alternative", "shoegaze"],
-  latin: ["latin", "reggaeton", "latin pop", "salsa", "bachata"],
-  funk: ["funk", "p funk", "soul", "boogie"],
-  disco: ["disco", "funk", "dance", "hi-nrg"],
-  alternative: ["alternative", "alternative rock", "post-punk", "new wave", "britpop"],
-  grunge: ["grunge", "alternative rock", "post-grunge", "seattle"],
-};
+const DEEZER_BASE = "https://api.deezer.com";
 
 const GENRE_ARTISTS: Record<string, string[]> = {
   rock: [
@@ -181,48 +156,74 @@ const OBSCURE_PATTERNS = [
 
 const NON_LATIN_SCRIPTS = /[\u0590-\u05FF\u0600-\u06FF\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF\u0400-\u04FF\u0E00-\u0E7F\u0900-\u097F]/;
 
-type RawTrack = {
+type DeezerTrack = {
+  id: number;
+  title: string;
+  duration: number;
+  rank: number;
+  preview: string;
+  artist: { id: number; name: string };
+  album: {
+    id: number;
+    title: string;
+    cover_xl: string;
+    cover_big: string;
+    cover_medium: string;
+  };
+};
+
+type NormalizedTrack = {
   id: string;
   name: string;
   artists: { id: string; name: string }[];
   album: {
     id: string;
     name: string;
-    album_type?: string;
     images: { url: string; width: number; height: number }[];
   };
-  uri: string;
   duration_ms: number;
-  popularity: number;
-  preview_url: string | null;
-  external_urls?: { spotify?: string };
+  rank: number;
+  previewUrl: string;
+  songUrl: string;
+  releaseDate?: string;
 };
 
-async function spFetch<T>(endpoint: string, token: string): Promise<T | null> {
+function normalizeDeezerTrack(t: DeezerTrack): NormalizedTrack {
+  return {
+    id: String(t.id),
+    name: t.title,
+    artists: [{ id: String(t.artist.id), name: t.artist.name }],
+    album: {
+      id: String(t.album.id),
+      name: t.album.title,
+      images: [
+        { url: t.album.cover_xl || t.album.cover_big || t.album.cover_medium, width: 640, height: 640 },
+      ],
+    },
+    duration_ms: t.duration * 1000,
+    rank: t.rank,
+    previewUrl: t.preview,
+    songUrl: `https://www.deezer.com/track/${t.id}`,
+  };
+}
+
+async function dzFetch<T>(endpoint: string): Promise<T | null> {
   try {
-    const resp = await fetch(`${BASE}${endpoint}`, {
-      headers: { Authorization: `Bearer ${token}` },
+    const resp = await fetch(`${DEEZER_BASE}${endpoint}`, {
       signal: AbortSignal.timeout(8000),
     });
-    if (resp.status === 401) {
-      throw new Error("Spotify token expired or invalid");
-    }
-    if (resp.status === 429) {
-      console.warn(`[API/songs] Rate limited on ${endpoint.split("?")[0]}`);
-      const retryAfter = resp.headers.get("Retry-After");
-      if (retryAfter) {
-        await new Promise(r => setTimeout(r, Math.min(parseInt(retryAfter) * 1000, 3000)));
-      }
-      return null;
-    }
     if (!resp.ok) {
-      console.warn(`[API/songs] ${resp.status} on ${endpoint.split("?")[0]}`);
+      console.warn(`[API/songs] Deezer ${resp.status} on ${endpoint.split("?")[0]}`);
       return null;
     }
-    return resp.json();
+    const data = await resp.json();
+    if (data.error) {
+      console.warn(`[API/songs] Deezer error on ${endpoint.split("?")[0]}:`, data.error);
+      return null;
+    }
+    return data;
   } catch (err) {
-    if (err instanceof Error && err.message.includes("expired")) throw err;
-    console.warn(`[API/songs] Fetch error on ${endpoint.split("?")[0]}:`, err);
+    console.warn(`[API/songs] Deezer fetch error on ${endpoint.split("?")[0]}:`, err);
     return null;
   }
 }
@@ -236,14 +237,11 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-function isValidTrack(t: RawTrack, popularityFloor: number): boolean {
-  if (!t.id || !t.name || !t.uri || t.duration_ms < 15_000) return false;
+function isValidTrack(t: NormalizedTrack, rankFloor: number): boolean {
+  if (!t.id || !t.name || t.duration_ms < 15_000) return false;
   if (!t.artists?.length || !t.album) return false;
-
-  if (t.popularity < popularityFloor) return false;
-
-  const albumType = t.album.album_type;
-  if (albumType && albumType !== "album" && albumType !== "single") return false;
+  if (!t.previewUrl) return false;
+  if (t.rank < rankFloor) return false;
 
   if (t.artists.some(a => /^various\s*artists?$/i.test(a.name))) return false;
 
@@ -258,170 +256,52 @@ function isValidTrack(t: RawTrack, popularityFloor: number): boolean {
   return true;
 }
 
-function buildYearFilter(eras: string[]): string {
-  if (!eras?.length) return "";
+function buildYearRange(eras: string[]): { min: number; max: number } | null {
+  if (!eras?.length) return null;
   const starts = eras.map(e => parseInt(e, 10)).filter(n => !isNaN(n));
-  if (!starts.length) return "";
-  return ` year:${Math.min(...starts)}-${Math.max(...starts) + 9}`;
+  if (!starts.length) return null;
+  return { min: Math.min(...starts), max: Math.max(...starts) + 9 };
 }
 
-async function searchForTracks(
+function isInEraRange(track: NormalizedTrack, yearRange: { min: number; max: number } | null): boolean {
+  if (!yearRange) return true;
+  if (!track.releaseDate) return true;
+  const year = parseInt(track.releaseDate.slice(0, 4), 10);
+  if (isNaN(year)) return true;
+  return year >= yearRange.min && year <= yearRange.max;
+}
+
+async function searchDeezerTracks(
   query: string,
-  token: string,
-  limit: number,
-  offset: number,
-  market?: string
-): Promise<RawTrack[]> {
+  limit = 50,
+): Promise<DeezerTrack[]> {
   const params = new URLSearchParams({
     q: query,
-    type: "track",
     limit: String(limit),
-    offset: String(offset),
+    order: "RANKING",
   });
-  if (market) params.set("market", market);
-
-  const data = await spFetch<{ tracks?: { items: RawTrack[] } }>(
-    `/search?${params}`,
-    token
-  );
-  return data?.tracks?.items ?? [];
+  const data = await dzFetch<{ data?: DeezerTrack[] }>(`/search?${params}`);
+  return data?.data ?? [];
 }
 
-async function batchFetchSpotifyPreviews(
-  trackIds: string[],
-  token: string,
-  market: string
-): Promise<Map<string, string>> {
-  const previews = new Map<string, string>();
-  const batchSize = 50;
-
-  for (let i = 0; i < trackIds.length; i += batchSize) {
-    const batch = trackIds.slice(i, i + batchSize);
-    const data = await spFetch<{ tracks: (RawTrack | null)[] }>(
-      `/tracks?ids=${batch.join(",")}&market=${market}`,
-      token
-    );
-    for (const track of data?.tracks ?? []) {
-      if (track?.id && track.preview_url) {
-        previews.set(track.id, track.preview_url);
-      }
-    }
-  }
-
-  return previews;
-}
-
-/**
- * Use Spotify's recommendations endpoint to find tracks seeded by artist IDs.
- * Returns up to `limit` tracks. This is the best way to discover genre-appropriate
- * tracks that Spotify itself considers related.
- */
-async function fetchRecommendations(
-  seedArtistIds: string[],
-  token: string,
-  limit: number,
-  market: string,
-  minPopularity: number
-): Promise<RawTrack[]> {
-  const params = new URLSearchParams({
-    seed_artists: seedArtistIds.slice(0, 5).join(","),
-    limit: String(Math.min(limit, 100)),
-    market,
-    min_popularity: String(minPopularity),
-  });
-  const data = await spFetch<{ tracks: RawTrack[] }>(
-    `/recommendations?${params}`,
-    token
-  );
-  return data?.tracks ?? [];
-}
-
-/**
- * Look up a Spotify artist ID by name.
- */
-async function resolveArtistId(
-  name: string,
-  token: string,
-  market?: string
-): Promise<string | null> {
-  const params = new URLSearchParams({ q: name, type: "artist", limit: "1" });
-  if (market) params.set("market", market);
-  const data = await spFetch<{ artists?: { items: { id: string; name: string }[] } }>(
-    `/search?${params}`,
-    token
-  );
-  const items = data?.artists?.items;
+async function getDeezerArtistId(name: string): Promise<number | null> {
+  const params = new URLSearchParams({ q: name, limit: "1" });
+  const data = await dzFetch<{ data?: { id: number; name: string }[] }>(`/search/artist?${params}`);
+  const items = data?.data;
   if (!items?.length) return null;
+
   const normalQ = name.toLowerCase().replace(/[^a-z0-9]/g, "");
   const normalA = items[0].name.toLowerCase().replace(/[^a-z0-9]/g, "");
   if (normalA.includes(normalQ) || normalQ.includes(normalA)) return items[0].id;
   return null;
 }
 
-type ItunesResult = { artistName: string; trackName: string; previewUrl?: string };
-
-async function fetchItunesForArtist(artistName: string): Promise<ItunesResult[]> {
-  try {
-    const resp = await fetch(
-      `https://itunes.apple.com/search?term=${encodeURIComponent(artistName)}&media=music&entity=song&limit=50`,
-      { signal: AbortSignal.timeout(5000) }
-    );
-    if (!resp.ok) return [];
-    const data = await resp.json();
-    return data.results ?? [];
-  } catch {
-    return [];
-  }
+async function getDeezerArtistTopTracks(artistId: number, limit = 50): Promise<DeezerTrack[]> {
+  const data = await dzFetch<{ data?: DeezerTrack[] }>(`/artist/${artistId}/top?limit=${limit}`);
+  return data?.data ?? [];
 }
 
-async function enrichWithItunesPreviews(tracks: RawTrack[]): Promise<Map<string, string>> {
-  const previewMap = new Map<string, string>();
-
-  const artistGroups = new Map<string, RawTrack[]>();
-  for (const track of tracks) {
-    const artist = track.artists[0]?.name ?? "";
-    if (!artistGroups.has(artist)) artistGroups.set(artist, []);
-    artistGroups.get(artist)!.push(track);
-  }
-
-  await Promise.all(
-    [...artistGroups.entries()].map(async ([artistName, artistTracks]) => {
-      const results = await fetchItunesForArtist(artistName);
-      for (const track of artistTracks) {
-        const normTrack = track.name.toLowerCase().replace(/[^a-z0-9]/g, "");
-        const match = results.find(r => {
-          if (!r.previewUrl) return false;
-          const normItunes = r.trackName.toLowerCase().replace(/[^a-z0-9]/g, "");
-          return normItunes === normTrack || normItunes.startsWith(normTrack) || normTrack.startsWith(normItunes);
-        });
-        if (match?.previewUrl) {
-          previewMap.set(track.id, match.previewUrl);
-        }
-      }
-    })
-  );
-
-  return previewMap;
-}
-
-function toResponseTrack(t: RawTrack, previewUrl: string) {
-  return {
-    id: t.id,
-    name: t.name,
-    artists: t.artists.map(a => ({ id: a.id, name: a.name })),
-    album: {
-      id: t.album.id,
-      name: t.album.name,
-      images: t.album.images,
-    },
-    uri: t.uri,
-    duration_ms: t.duration_ms,
-    previewUrl,
-    spotifyUrl: t.external_urls?.spotify ?? `https://open.spotify.com/track/${t.id}`,
-  };
-}
-
-function dedupTracks(tracks: RawTrack[]): RawTrack[] {
+function dedupTracks(tracks: NormalizedTrack[]): NormalizedTrack[] {
   const seen = new Set<string>();
   return tracks.filter(t => {
     if (seen.has(t.id)) return false;
@@ -430,113 +310,134 @@ function dedupTracks(tracks: RawTrack[]): RawTrack[] {
   });
 }
 
-/**
- * Multi-strategy song fetching pipeline — genre-first, artist-enriched.
- *
- * Order matters: Spotify's genre tag search is the most reliable broad source.
- * Artist lists are used as enrichment, not as the primary source.
- */
+function toResponseTrack(t: NormalizedTrack) {
+  return {
+    id: t.id,
+    name: t.name,
+    artists: t.artists,
+    album: t.album,
+    duration_ms: t.duration_ms,
+    previewUrl: t.previewUrl,
+    songUrl: t.songUrl,
+  };
+}
+
 async function gatherTracks(
   genres: string[],
   eras: string[],
-  market: string,
-  token: string,
   excludeIds: Set<string>
-): Promise<RawTrack[]> {
-  const yearFilter = buildYearFilter(eras);
-  const popularityFloor = yearFilter ? 30 : 50;
+): Promise<NormalizedTrack[]> {
+  const yearRange = buildYearRange(eras);
+  const rankFloor = yearRange ? 50000 : 100000;
   const MIN_POOL = 40;
 
-  let allTracks: RawTrack[] = [];
+  let allTracks: NormalizedTrack[] = [];
 
-  // ── Strategy 1: Genre tag search (broad, reliable) ──
-  // This is the primary source. Spotify's own genre taxonomy returns popular,
-  // well-known tracks without needing a hardcoded artist list.
+  // Strategy 1: Artist top tracks (best quality — curated popular songs)
   {
-    const searches: Promise<RawTrack[]>[] = [];
-    for (const genre of genres) {
-      const tags = GENRE_SEARCH_TAGS[genre] ?? [genre];
-      for (const tag of shuffle(tags).slice(0, 3)) {
-        for (let offset = 0; offset < 100; offset += 50) {
-          searches.push(searchForTracks(`genre:"${tag}"${yearFilter}`, token, 50, offset, market));
-        }
-        if (yearFilter) {
-          searches.push(searchForTracks(`genre:"${tag}"`, token, 50, 0, market));
-        }
-      }
-    }
-    const results = await Promise.all(searches);
-    allTracks.push(...results.flat());
-  }
-  allTracks = dedupTracks(allTracks).filter(t => !excludeIds.has(t.id) && isValidTrack(t, popularityFloor));
-  console.log(`[API/songs] Strategy 1 (genre tags): ${allTracks.length} tracks`);
-
-  // ── Strategy 2: Artist-based search (enrichment, parallelized) ──
-  {
-    const searches: Promise<RawTrack[]>[] = [];
+    const artistSearches: Promise<NormalizedTrack[]>[] = [];
     for (const genre of genres) {
       const artists = shuffle(GENRE_ARTISTS[genre] ?? []);
       for (const artist of artists) {
-        const query = `artist:${artist}${yearFilter}`;
-        const offset = Math.floor(Math.random() * 5);
-        const normalQ = artist.toLowerCase().replace(/[^a-z0-9]/g, "");
-        searches.push(
-          searchForTracks(query, token, 20, offset, market).then(tracks =>
-            tracks.filter(t =>
-              t.artists.some(a => {
-                const normalA = a.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+        artistSearches.push(
+          getDeezerArtistId(artist).then(async (id) => {
+            if (!id) return [];
+            const tracks = await getDeezerArtistTopTracks(id, 50);
+            const normalQ = artist.toLowerCase().replace(/[^a-z0-9]/g, "");
+            return tracks
+              .filter(t => {
+                const normalA = t.artist.name.toLowerCase().replace(/[^a-z0-9]/g, "");
                 return normalA.includes(normalQ) || normalQ.includes(normalA);
               })
-            )
+              .map(normalizeDeezerTrack);
+          })
+        );
+      }
+    }
+
+    const batchSize = 10;
+    for (let i = 0; i < artistSearches.length; i += batchSize) {
+      const batch = artistSearches.slice(i, i + batchSize);
+      const results = await Promise.all(batch);
+      allTracks.push(...results.flat());
+      if (i + batchSize < artistSearches.length) {
+        await new Promise(r => setTimeout(r, 200));
+      }
+    }
+  }
+  allTracks = dedupTracks(allTracks).filter(
+    t => !excludeIds.has(t.id) && isValidTrack(t, rankFloor) && isInEraRange(t, yearRange)
+  );
+  console.log(`[API/songs] Strategy 1 (artist top tracks): ${allTracks.length} tracks`);
+
+  // Strategy 2: Deezer search by artist name (catches more songs)
+  if (allTracks.length < MIN_POOL) {
+    const searches: Promise<NormalizedTrack[]>[] = [];
+    for (const genre of genres) {
+      const artists = shuffle(GENRE_ARTISTS[genre] ?? []).slice(0, 20);
+      for (const artist of artists) {
+        const normalQ = artist.toLowerCase().replace(/[^a-z0-9]/g, "");
+        searches.push(
+          searchDeezerTracks(`artist:"${artist}"`, 50).then(tracks =>
+            tracks
+              .filter(t => {
+                const normalA = t.artist.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+                return normalA.includes(normalQ) || normalQ.includes(normalA);
+              })
+              .map(normalizeDeezerTrack)
           )
         );
       }
     }
-    const results = await Promise.all(searches);
-    allTracks.push(...results.flat());
-  }
-  allTracks = dedupTracks(allTracks).filter(t => !excludeIds.has(t.id) && isValidTrack(t, popularityFloor));
-  console.log(`[API/songs] Strategy 2 (artist search): ${allTracks.length} tracks`);
 
-  // ── Strategy 4: Spotify Recommendations API ──
-  if (allTracks.length < MIN_POOL) {
-    const artistIds: string[] = [];
-    for (const genre of genres) {
-      const artists = shuffle(GENRE_ARTISTS[genre] ?? []).slice(0, 5);
-      const resolved = await Promise.all(artists.map(a => resolveArtistId(a, token, market)));
-      artistIds.push(...resolved.filter((id): id is string => id !== null));
-    }
-    if (artistIds.length > 0) {
-      for (let i = 0; i < artistIds.length; i += 5) {
-        const seeds = artistIds.slice(i, i + 5);
-        const recs = await fetchRecommendations(seeds, token, 100, market, popularityFloor);
-        allTracks.push(...recs);
+    const batchSize = 10;
+    for (let i = 0; i < searches.length; i += batchSize) {
+      const batch = searches.slice(i, i + batchSize);
+      const results = await Promise.all(batch);
+      allTracks.push(...results.flat());
+      if (i + batchSize < searches.length) {
+        await new Promise(r => setTimeout(r, 200));
       }
-      allTracks = dedupTracks(allTracks).filter(t => !excludeIds.has(t.id) && isValidTrack(t, popularityFloor));
-      console.log(`[API/songs] Strategy 4 (recommendations): ${allTracks.length} tracks`);
     }
+    allTracks = dedupTracks(allTracks).filter(
+      t => !excludeIds.has(t.id) && isValidTrack(t, rankFloor) && isInEraRange(t, yearRange)
+    );
+    console.log(`[API/songs] Strategy 2 (artist search): ${allTracks.length} tracks`);
   }
 
-  // ── Strategy 5: Artist search WITHOUT year filter ──
-  if (allTracks.length < MIN_POOL && yearFilter) {
+  // Strategy 3: Broader search without era filter if pool is still thin
+  if (allTracks.length < MIN_POOL && yearRange) {
+    const searches: Promise<NormalizedTrack[]>[] = [];
     for (const genre of genres) {
-      const artists = shuffle(GENRE_ARTISTS[genre] ?? []);
+      const artists = shuffle(GENRE_ARTISTS[genre] ?? []).slice(0, 15);
       for (const artist of artists) {
-        if (allTracks.length >= MIN_POOL * 2) break;
-        const query = `artist:${artist}`;
-        const tracks = await searchForTracks(query, token, 20, 0, market);
         const normalQ = artist.toLowerCase().replace(/[^a-z0-9]/g, "");
-        const verified = tracks.filter(t =>
-          t.artists.some(a => {
-            const normalA = a.name.toLowerCase().replace(/[^a-z0-9]/g, "");
-            return normalA.includes(normalQ) || normalQ.includes(normalA);
-          })
+        searches.push(
+          searchDeezerTracks(`artist:"${artist}"`, 50).then(tracks =>
+            tracks
+              .filter(t => {
+                const normalA = t.artist.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+                return normalA.includes(normalQ) || normalQ.includes(normalA);
+              })
+              .map(normalizeDeezerTrack)
+          )
         );
-        allTracks.push(...verified);
       }
     }
-    allTracks = dedupTracks(allTracks).filter(t => !excludeIds.has(t.id) && isValidTrack(t, popularityFloor));
-    console.log(`[API/songs] Strategy 5 (artists, no year): ${allTracks.length} tracks`);
+
+    const batchSize = 10;
+    for (let i = 0; i < searches.length; i += batchSize) {
+      const batch = searches.slice(i, i + batchSize);
+      const results = await Promise.all(batch);
+      allTracks.push(...results.flat());
+      if (i + batchSize < searches.length) {
+        await new Promise(r => setTimeout(r, 200));
+      }
+    }
+    allTracks = dedupTracks(allTracks).filter(
+      t => !excludeIds.has(t.id) && isValidTrack(t, rankFloor)
+    );
+    console.log(`[API/songs] Strategy 3 (no year filter): ${allTracks.length} tracks`);
   }
 
   // Artist diversity cap — keep up to 4 tracks per artist
@@ -547,140 +448,100 @@ async function gatherTracks(
     return artistCount[mainArtist] <= 4;
   });
 
-  // Sort by popularity, keep top 200
   allTracks = allTracks
-    .sort((a, b) => b.popularity - a.popularity)
+    .sort((a, b) => b.rank - a.rank)
     .slice(0, 200);
 
   return allTracks;
 }
 
-async function resolvePreviews(
-  tracks: RawTrack[],
-  userToken: string | undefined,
-  market: string
-): Promise<Map<string, string>> {
-  let previewMap = new Map<string, string>();
-
-  if (userToken) {
-    previewMap = await batchFetchSpotifyPreviews(tracks.map(t => t.id), userToken, market);
-    console.log(`[API/songs] User-token previews: ${previewMap.size}/${tracks.length}`);
-  }
-
-  for (const t of tracks) {
-    if (!previewMap.has(t.id) && t.preview_url) {
-      previewMap.set(t.id, t.preview_url);
-    }
-  }
-
-  const missing = tracks.filter(t => !previewMap.has(t.id));
-  if (missing.length > 0) {
-    const itunesPreviews = await enrichWithItunesPreviews(missing);
-    console.log(`[API/songs] iTunes previews: ${itunesPreviews.size}/${missing.length}`);
-    for (const [id, url] of itunesPreviews) {
-      previewMap.set(id, url);
-    }
-  }
-
-  console.log(`[API/songs] Total with previews: ${previewMap.size}/${tracks.length}`);
-  return previewMap;
-}
-
-/**
- * Quick mode: genre-first search with user token preview resolution.
- *
- * Previous approach failed because:
- * - CC tokens return preview_url: null for most tracks
- * - Quick fetch never sent the user token for batch preview resolution
- * - So even when searches found 100+ tracks, all had null previews → 0 results
- *
- * Fix: pass user token through, use batchFetchSpotifyPreviews (same as full pipeline).
- */
 async function handleQuickFetch(
   genres: string[],
   eras: string[],
-  market: string,
-  quickCount: number,
-  userToken?: string
+  quickCount: number
 ) {
-  const ccToken = await getClientCredentialsToken();
-  const yearFilter = buildYearFilter(eras);
-  const popularityFloor = yearFilter ? 30 : 40;
+  const yearRange = buildYearRange(eras);
+  const rankFloor = yearRange ? 50000 : 100000;
 
-  console.log(`[API/songs] Quick fetch: genres=[${genres}], eras=[${eras}], floor=${popularityFloor}, hasUserToken=${!!userToken}`);
+  console.log(`[API/songs] Quick fetch: genres=[${genres}], eras=[${eras}]`);
 
-  // ── Genre-first: broad Spotify search by genre tag (most reliable) ──
-  const genreSearches: Promise<RawTrack[]>[] = [];
-  for (const genre of genres) {
-    const tags = GENRE_SEARCH_TAGS[genre] ?? [genre];
-    for (const tag of shuffle(tags).slice(0, 3)) {
-      genreSearches.push(
-        searchForTracks(`genre:"${tag}"${yearFilter}`, ccToken, 50, 0, market)
-      );
-      if (yearFilter) {
-        genreSearches.push(
-          searchForTracks(`genre:"${tag}"`, ccToken, 50, 0, market)
-        );
-      }
-    }
-  }
-
-  // ── Artist searches in parallel (enrichment) ──
-  const artistSearches: Promise<RawTrack[]>[] = [];
+  // Artist top tracks — fast and high quality
+  const artistSearches: Promise<NormalizedTrack[]>[] = [];
   for (const genre of genres) {
     const artists = shuffle(GENRE_ARTISTS[genre] ?? []).slice(0, 8);
     for (const artist of artists) {
-      const query = `artist:${artist}${yearFilter}`;
-      const normalQ = artist.toLowerCase().replace(/[^a-z0-9]/g, "");
       artistSearches.push(
-        searchForTracks(query, ccToken, 10, 0, market).then(tracks =>
-          tracks.filter(t =>
-            t.artists.some(a => {
-              const normalA = a.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+        getDeezerArtistId(artist).then(async (id) => {
+          if (!id) return [];
+          const tracks = await getDeezerArtistTopTracks(id, 25);
+          const normalQ = artist.toLowerCase().replace(/[^a-z0-9]/g, "");
+          return tracks
+            .filter(t => {
+              const normalA = t.artist.name.toLowerCase().replace(/[^a-z0-9]/g, "");
               return normalA.includes(normalQ) || normalQ.includes(normalA);
             })
-          )
+            .map(normalizeDeezerTrack);
+        })
+      );
+    }
+  }
+
+  // Search by artist name in parallel
+  const searchQueries: Promise<NormalizedTrack[]>[] = [];
+  for (const genre of genres) {
+    const artists = shuffle(GENRE_ARTISTS[genre] ?? []).slice(0, 6);
+    for (const artist of artists) {
+      const normalQ = artist.toLowerCase().replace(/[^a-z0-9]/g, "");
+      searchQueries.push(
+        searchDeezerTracks(`artist:"${artist}"`, 25).then(tracks =>
+          tracks
+            .filter(t => {
+              const normalA = t.artist.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+              return normalA.includes(normalQ) || normalQ.includes(normalA);
+            })
+            .map(normalizeDeezerTrack)
         )
       );
     }
   }
 
-  const [genreResults, artistResults] = await Promise.all([
-    Promise.all(genreSearches),
+  const [artistResults, searchResults] = await Promise.all([
     Promise.all(artistSearches),
+    Promise.all(searchQueries),
   ]);
 
   let candidates = [
-    ...genreResults.flat(),
     ...artistResults.flat(),
+    ...searchResults.flat(),
   ];
 
-  candidates = dedupTracks(candidates).filter(t => isValidTrack(t, popularityFloor));
+  candidates = dedupTracks(candidates).filter(
+    t => isValidTrack(t, rankFloor) && isInEraRange(t, yearRange)
+  );
   console.log(`[API/songs] Quick mode: ${candidates.length} candidates after filter`);
 
-  // Sort by popularity, keep top 60 for preview resolution
-  candidates = candidates.sort((a, b) => b.popularity - a.popularity).slice(0, 60);
+  // If era filter was too strict, retry without it
+  if (candidates.length < quickCount && yearRange) {
+    candidates = dedupTracks([...artistResults.flat(), ...searchResults.flat()]).filter(
+      t => isValidTrack(t, rankFloor)
+    );
+    console.log(`[API/songs] Quick mode (no year): ${candidates.length} candidates`);
+  }
 
-  // ── Resolve previews using the SAME approach as full pipeline ──
-  const previewMap = await resolvePreviews(candidates, userToken, market);
+  candidates = candidates.sort((a, b) => b.rank - a.rank).slice(0, 60);
 
-  const withPreviews = candidates.filter(t => previewMap.has(t.id));
-  console.log(`[API/songs] Quick mode: ${withPreviews.length} with previews from ${candidates.length} candidates`);
-
-  const result = shuffle(withPreviews)
+  const result = shuffle(candidates)
     .slice(0, quickCount)
-    .map(t => toResponseTrack(t, previewMap.get(t.id)!));
+    .map(toResponseTrack);
 
   return NextResponse.json({ tracks: result });
 }
 
 export async function POST(request: Request) {
   try {
-    const { genres, eras, market, userToken, quick, quickCount, excludeIds } = (await request.json()) as {
+    const { genres, eras, quick, quickCount, excludeIds } = (await request.json()) as {
       genres: string[];
       eras: string[];
-      market: string;
-      userToken?: string;
       quick?: boolean;
       quickCount?: number;
       excludeIds?: string[];
@@ -690,21 +551,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No genres provided" }, { status: 400 });
     }
 
-    const mkt = market || "US";
-
     if (quick) {
-      return handleQuickFetch(genres, eras ?? [], mkt, quickCount ?? 3, userToken);
+      return handleQuickFetch(genres, eras ?? [], quickCount ?? 3);
     }
 
-    const ccToken = await getClientCredentialsToken();
     const exclude = new Set(excludeIds ?? []);
-
-    const allTracks = await gatherTracks(genres, eras ?? [], mkt, ccToken, exclude);
-    const previewMap = await resolvePreviews(allTracks, userToken, mkt);
+    const allTracks = await gatherTracks(genres, eras ?? [], exclude);
 
     const result = allTracks
-      .filter(t => previewMap.has(t.id))
-      .map(t => toResponseTrack(t, previewMap.get(t.id) as string));
+      .filter(t => !!t.previewUrl)
+      .map(toResponseTrack);
 
     return NextResponse.json({ tracks: result });
   } catch (err) {

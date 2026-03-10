@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useGameStore } from "@/store/gameStore";
-import type { SpotifyTrack } from "@/lib/game/types";
+import type { Track } from "@/lib/game/types";
 
 // Minimal Web Speech API types (not in standard TS lib)
 type SpeechRecognitionEvent = Event & {
@@ -32,7 +32,7 @@ type GuessInputProps = {
 export function GuessInput({ onGuess, onGiveUp, onSkip, canSkip, disabled }: GuessInputProps) {
   const { config, currentSnippetLevel, currentSongIndex } = useGameStore();
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SpotifyTrack[]>([]);
+  const [results, setResults] = useState<Track[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [searching, setSearching] = useState(false);
   const [listening, setListening] = useState(false);
@@ -69,7 +69,7 @@ export function GuessInput({ onGuess, onGiveUp, onSkip, canSkip, disabled }: Gue
         ]);
 
         const seen = new Set<string>();
-        const merged: SpotifyTrack[] = [];
+        const merged: Track[] = [];
         for (const track of [
           ...(raw.tracks ?? []),
           ...(byArtist.tracks ?? []),
@@ -101,7 +101,7 @@ export function GuessInput({ onGuess, onGiveUp, onSkip, canSkip, disabled }: Gue
     };
   }, [query, doSearch]);
 
-  const handleSelect = (track: SpotifyTrack) => {
+  const handleSelect = (track: Track) => {
     setShowResults(false);
     setQuery(`${track.name} — ${track.artists.map((a) => a.name).join(", ")}`);
     onGuess(track.id, track.name, track.artists.map((a) => a.name));

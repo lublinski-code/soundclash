@@ -34,10 +34,7 @@
   --gold-dim: rgba(255, 249, 130, 0.15);
   --gold-glow: rgba(255, 249, 130, 0.3);
 
-  /* ─── Spotify / Action green ─── */
-  --spotify: #1ed760;
-  --spotify-dark: #17a84b;
-  --spotify-dim: rgba(30, 215, 96, 0.2);
+  /* ─── Accent ─── */
   --accent: #1ed760;
   --accent-hover: #24e96c;
   --accent-dim: rgba(30, 215, 96, 0.15);

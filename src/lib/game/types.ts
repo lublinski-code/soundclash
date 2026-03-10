@@ -51,7 +51,7 @@ export type GamePhase =
   | "ROUND_END"
   | "KO";
 
-export type SpotifyTrack = {
+export type Track = {
   id: string;
   name: string;
   artists: { id: string; name: string }[];
@@ -60,8 +60,7 @@ export type SpotifyTrack = {
     name: string;
     images: { url: string; width: number; height: number }[];
   };
-  uri: string;
   duration_ms: number;
   previewUrl: string;
-  spotifyUrl: string;
+  songUrl: string;
 };

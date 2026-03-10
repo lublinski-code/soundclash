@@ -1,11 +1,11 @@
-import type { Team, GamePhase, RoundResult, GameConfig, SpotifyTrack } from "./types";
+import type { Team, GamePhase, RoundResult, GameConfig, Track } from "./types";
 import { calculateDamage, ARTIST_ONLY_DAMAGE } from "./damage";
 
 export type GameState = {
   phase: GamePhase;
   teams: [Team, Team];
   config: GameConfig;
-  songPool: SpotifyTrack[];
+  songPool: Track[];
   currentSongIndex: number;
   currentTeamIndex: 0 | 1; // which team is guessing
   currentSnippetLevel: number;
@@ -15,8 +15,8 @@ export type GameState = {
 };
 
 export type GameAction =
-  | { type: "START_GAME"; songPool: SpotifyTrack[] }
-  | { type: "ADD_SONGS"; songs: SpotifyTrack[] }
+  | { type: "START_GAME"; songPool: Track[] }
+  | { type: "ADD_SONGS"; songs: Track[] }
   | { type: "SHOW_VS" }
   | { type: "START_SNIPPET" }
   | { type: "NEXT_SNIPPET" }
@@ -44,7 +44,7 @@ function isTrackMatch(
   guessId: string,
   guessName: string,
   guessArtists: string[],
-  target: SpotifyTrack
+  target: Track
 ): boolean {
   if (guessId === target.id) return true;
 
@@ -59,7 +59,7 @@ function isTrackMatch(
   );
 }
 
-function isArtistMatch(guessArtists: string[], target: SpotifyTrack): boolean {
+function isArtistMatch(guessArtists: string[], target: Track): boolean {
   const targetArtists = target.artists.map((a) => a.name.toLowerCase());
   const guessLower = guessArtists.map((a) => a.toLowerCase());
   return guessLower.some((g) =>
@@ -76,7 +76,7 @@ function applyDamage(
   state: GameState,
   correct: boolean,
   artistOnly: boolean,
-  currentSong: SpotifyTrack
+  currentSong: Track
 ): GameState {
   const teamIdx = state.currentTeamIndex;
   const opponentIdx = (teamIdx === 0 ? 1 : 0) as 0 | 1;

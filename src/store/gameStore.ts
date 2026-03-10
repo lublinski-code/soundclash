@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import type { Team, GameConfig, GamePhase, RoundResult, SpotifyTrack } from "@/lib/game/types";
+import type { Team, GameConfig, GamePhase, RoundResult, Track } from "@/lib/game/types";
 import {
   DEFAULT_STARTING_HP,
   DEFAULT_CORRECT_DAMAGE_TABLE,
@@ -14,7 +14,7 @@ type GameStore = {
   phase: GamePhase;
   teams: [Team, Team];
   config: GameConfig;
-  songPool: SpotifyTrack[];
+  songPool: Track[];
   currentSongIndex: number;
   currentTeamIndex: 0 | 1;
   currentSnippetLevel: number;

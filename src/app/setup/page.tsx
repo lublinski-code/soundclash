@@ -7,8 +7,7 @@ import { GenrePicker } from "@/components/setup/GenrePicker";
 import { EraPicker } from "@/components/setup/EraPicker";
 import { GameConfigPanel } from "@/components/setup/GameConfig";
 import { useGameStore } from "@/store/gameStore";
-import { buildSongPool, buildQuickSong } from "@/lib/spotify/songPool";
-import { isAuthenticated } from "@/lib/spotify/auth";
+import { buildSongPool, buildQuickSong } from "@/lib/music/songPool";
 import { getRandomGenres } from "@/lib/game/constants";
 
 export default function SetupPage() {
@@ -24,12 +23,6 @@ export default function SetupPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    if (!isAuthenticated()) {
-      router.replace("/");
-    }
-  }, [router]);
 
   const canStart =
     teams[0].members.length > 0 &&
@@ -69,11 +62,7 @@ export default function SetupPage() {
     } catch (err) {
       console.error("Song pool build failed:", err);
       const msg = err instanceof Error ? err.message : "Failed to load songs";
-      if (msg.includes("401") || msg.includes("expired") || msg.includes("Not authenticated")) {
-        setError("Spotify session expired. Please go back and reconnect.");
-      } else {
-        setError(msg);
-      }
+      setError(msg);
       setLoading(false);
     }
   };
