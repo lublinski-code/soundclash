@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useGameStore } from "@/store/gameStore";
 import type { Track } from "@/lib/game/types";
-import { ARTIST_ONLY_DAMAGE } from "@/lib/game/constants";
 
 // Minimal Web Speech API types (not in standard TS lib)
 type SpeechRecognitionEvent = Event & {
@@ -177,100 +176,83 @@ export function GuessInput({ onGuess, onGiveUp, onSkip, canSkip, disabled }: Gue
       <div className="relative w-full" style={{ maxWidth: "600px" }}>
         <div className="flex flex-col sm:flex-row items-stretch" style={{ gap: "12px" }}>
           {/* Search input */}
-          <div className="relative flex-1 flex flex-col" style={{ gap: "8px" }}>
-            <div className="relative">
-              <input
-                ref={inputRef}
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                disabled={disabled}
-                placeholder="Song or artist name..."
-                className="input-surface w-full"
-                style={{
-                  paddingRight: speechAvailable ? "156px" : "96px",
-                }}
-                autoComplete="off"
-                autoCorrect="off"
-                autoCapitalize="none"
-                spellCheck={false}
-                inputMode="text"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.nativeEvent.isComposing && results.length > 0) {
-                    handleSelect(results[0]);
-                  }
-                }}
-              />
-
-              {/* Right-side strip: mic (left) then spinner then HP (right), no overlap */}
-              <div
-                className="absolute top-1/2 -translate-y-1/2 flex flex-row items-center"
-                style={{ right: "12px", gap: "12px" }}
-              >
-                {speechAvailable && (
-                  <button
-                    type="button"
-                    onClick={listening ? stopListening : startListening}
-                    disabled={disabled}
-                    className="flex items-center justify-center rounded-md transition-colors duration-150 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-[var(--ring)] focus-visible:outline-offset-2 shrink-0"
-                    style={{
-                      width: "44px",
-                      height: "44px",
-                      marginRight: "4px",
-                      background: listening ? "var(--destructive)" : "rgba(255,255,255,0.06)",
-                      border: "1px solid var(--border-subtle)",
-                      color: listening ? "white" : "var(--text-secondary)",
-                      cursor: "pointer",
-                    }}
-                    aria-label={listening ? "Stop listening" : "Speak answer"}
-                    title={listening ? "Stop listening" : "Say the song or artist name"}
-                  >
-                    {listening ? (
-                      <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
-                        <rect x="6" y="6" width="12" height="12" rx="2" />
-                      </svg>
-                    ) : (
-                      <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
-                        <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.93V20H9v2h6v-2h-2v-2.07A7 7 0 0 0 19 11h-2z" />
-                      </svg>
-                    )}
-                  </button>
-                )}
-                {searching && (
-                  <div className="w-5 h-5 flex items-center justify-center shrink-0">
-                    <div className="w-4 h-4 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
-                  </div>
-                )}
-                <span
-                  className="font-display flex items-baseline gap-0.5 shrink-0"
-                  style={{
-                    fontSize: "14px",
-                    lineHeight: 1.3,
-                    color: "var(--accent)",
-                  }}
-                >
-                  <span aria-label="Full song guess damage">{currentHitDamage}</span>
-                  <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>/</span>
-                  <span style={{ color: "var(--text-muted)", fontSize: "12px" }} aria-label="Artist-only guess damage">{ARTIST_ONLY_DAMAGE}</span>
-                  <span style={{ marginLeft: "1px", color: "var(--text-muted)", fontSize: "12px" }}>HP</span>
-                </span>
-              </div>
-            </div>
-
-            {/* Damage hint: full song vs artist-only */}
-            <p
-              className="text-caption"
+          <div className="relative flex-1">
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              disabled={disabled}
+              placeholder="Song or artist name..."
+              className="input-surface w-full"
               style={{
-                color: "var(--text-muted)",
-                display: "flex",
-                flexWrap: "wrap",
-                gap: "8px",
-                justifyContent: "center",
+                paddingRight: speechAvailable ? "110px" : "72px",
+              }}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              inputMode="text"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.nativeEvent.isComposing && results.length > 0) {
+                  handleSelect(results[0]);
+                }
+              }}
+            />
+
+            {/* Mic button — no background, left of HP */}
+            {speechAvailable && (
+              <button
+                type="button"
+                onClick={listening ? stopListening : startListening}
+                disabled={disabled}
+                className="absolute top-1/2 -translate-y-1/2 flex items-center justify-center rounded-md transition-colors duration-150 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-[var(--ring)] focus-visible:outline-offset-2"
+                style={{
+                  right: "52px",
+                  width: "32px",
+                  height: "32px",
+                  background: "transparent",
+                  border: "none",
+                  color: listening ? "var(--destructive)" : "var(--text-muted)",
+                  cursor: "pointer",
+                }}
+                aria-label={listening ? "Stop listening" : "Speak answer"}
+                title={listening ? "Stop listening" : "Say the song or artist name"}
+              >
+                {listening ? (
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+                    <rect x="6" y="6" width="12" height="12" rx="2" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+                    <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.93V20H9v2h6v-2h-2v-2.07A7 7 0 0 0 19 11h-2z" />
+                  </svg>
+                )}
+              </button>
+            )}
+
+            {/* HP count */}
+            <span
+              className="font-display absolute top-1/2 -translate-y-1/2"
+              style={{
+                right: "20px",
+                fontSize: "16px",
+                lineHeight: 1.3,
+                color: "var(--accent)",
+                pointerEvents: "none",
               }}
             >
-              <span>Full song → <strong style={{ color: "var(--accent)", fontWeight: 600 }}>{currentHitDamage} HP</strong></span>
-              <span>Artist only → <strong style={{ color: "var(--text-secondary)", fontWeight: 600 }}>{ARTIST_ONLY_DAMAGE} HP</strong> (partial)</span>
-            </p>
+              {currentHitDamage} HP
+            </span>
+
+            {searching && (
+              <div
+                className="absolute top-1/2 -translate-y-1/2"
+                style={{ right: speechAvailable ? "94px" : "80px" }}
+              >
+                <div className="w-4 h-4 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
           </div>
 
           {/* Hear More button */}
