@@ -4,6 +4,23 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useGameStore } from "@/store/gameStore";
 import type { SpotifyTrack } from "@/lib/game/types";
 
+// Minimal Web Speech API types (not in standard TS lib)
+type SpeechRecognitionEvent = Event & {
+  results: SpeechRecognitionResultList;
+};
+interface SpeechRecognitionInstance extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start(): void;
+  stop(): void;
+  onresult: ((e: SpeechRecognitionEvent) => void) | null;
+  onerror: ((e: Event) => void) | null;
+  onend: (() => void) | null;
+}
+declare const SpeechRecognition: new () => SpeechRecognitionInstance;
+declare const webkitSpeechRecognition: new () => SpeechRecognitionInstance;
+
 type GuessInputProps = {
   onGuess: (trackId: string, trackName: string, artistNames: string[]) => void;
   onGiveUp: () => void;
@@ -13,16 +30,21 @@ type GuessInputProps = {
 };
 
 export function GuessInput({ onGuess, onGiveUp, onSkip, canSkip, disabled }: GuessInputProps) {
-  const { config, currentSnippetLevel } = useGameStore();
+  const { config, currentSnippetLevel, currentSongIndex } = useGameStore();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SpotifyTrack[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [listening, setListening] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const inputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
   const currentHitDamage = config.correctDamageTable[Math.min(currentSnippetLevel, config.correctDamageTable.length - 1)] ?? 3;
   const giveUpDamage = config.wrongSelfDamage;
+
+  const speechAvailable = typeof window !== "undefined" &&
+    ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
 
   const doSearch = useCallback(
     async (q: string) => {
@@ -33,14 +55,34 @@ export function GuessInput({ onGuess, onGiveUp, onSkip, canSkip, disabled }: Gue
       }
       setSearching(true);
       try {
-        const params = new URLSearchParams({ q, limit: "6" });
-        if (config.market) params.set("market", config.market);
-        const res = await fetch(`/api/search?${params.toString()}`);
-        if (!res.ok) throw new Error("Search request failed");
-        const data = await res.json();
-        const tracks: SpotifyTrack[] = data.tracks ?? [];
-        setResults(tracks);
-        setShowResults(tracks.length > 0);
+        // Run multiple search strategies in parallel for flexible matching:
+        // 1. Raw query (best for full "Artist - Song" or partial song name)
+        // 2. artist: prefix (best for searching by artist name only)
+        // 3. track: prefix (best for searching by song name only)
+        const base = new URLSearchParams({ limit: "8" });
+        if (config.market) base.set("market", config.market);
+
+        const [raw, byArtist, byTrack] = await Promise.all([
+          fetch(`/api/search?${new URLSearchParams({ ...Object.fromEntries(base), q })}`).then(r => r.json()).catch(() => ({ tracks: [] })),
+          fetch(`/api/search?${new URLSearchParams({ ...Object.fromEntries(base), q: `artist:${q}` })}`).then(r => r.json()).catch(() => ({ tracks: [] })),
+          fetch(`/api/search?${new URLSearchParams({ ...Object.fromEntries(base), q: `track:${q}` })}`).then(r => r.json()).catch(() => ({ tracks: [] })),
+        ]);
+
+        const seen = new Set<string>();
+        const merged: SpotifyTrack[] = [];
+        for (const track of [
+          ...(raw.tracks ?? []),
+          ...(byArtist.tracks ?? []),
+          ...(byTrack.tracks ?? []),
+        ]) {
+          if (!seen.has(track.id)) {
+            seen.add(track.id);
+            merged.push(track);
+          }
+        }
+
+        setResults(merged.slice(0, 8));
+        setShowResults(merged.length > 0);
       } catch {
         setResults([]);
         setShowResults(false);
@@ -65,12 +107,43 @@ export function GuessInput({ onGuess, onGiveUp, onSkip, canSkip, disabled }: Gue
     onGuess(track.id, track.name, track.artists.map((a) => a.name));
   };
 
+  // Reset on new song OR new snippet level
   useEffect(() => {
     setQuery("");
     setResults([]);
     setShowResults(false);
     inputRef.current?.focus();
-  }, [currentSnippetLevel]);
+  }, [currentSnippetLevel, currentSongIndex]);
+
+  const startListening = useCallback(() => {
+    if (!speechAvailable) return;
+
+    const Rec = (typeof SpeechRecognition !== "undefined" ? SpeechRecognition : webkitSpeechRecognition);
+    const rec = new Rec();
+    recognitionRef.current = rec;
+
+    rec.continuous = false;
+    rec.interimResults = false;
+    rec.lang = "en-US";
+
+    rec.onresult = (e: SpeechRecognitionEvent) => {
+      const transcript = e.results[0]?.[0]?.transcript ?? "";
+      if (transcript) {
+        setQuery(transcript);
+      }
+    };
+
+    rec.onerror = () => setListening(false);
+    rec.onend = () => setListening(false);
+
+    rec.start();
+    setListening(true);
+  }, [speechAvailable]);
+
+  const stopListening = useCallback(() => {
+    recognitionRef.current?.stop();
+    setListening(false);
+  }, []);
 
   return (
     <div className="w-full flex flex-col items-center" style={{ gap: "16px" }}>
@@ -85,9 +158,9 @@ export function GuessInput({ onGuess, onGiveUp, onSkip, canSkip, disabled }: Gue
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               disabled={disabled}
-              placeholder="Start writing the artist name..."
+              placeholder="Song or artist name..."
               className="input-surface w-full"
-              style={{ paddingRight: "72px" }}
+              style={{ paddingRight: speechAvailable ? "110px" : "72px" }}
               autoComplete="off"
               autoCorrect="off"
               autoCapitalize="none"
@@ -99,6 +172,40 @@ export function GuessInput({ onGuess, onGiveUp, onSkip, canSkip, disabled }: Gue
                 }
               }}
             />
+
+            {/* Mic button */}
+            {speechAvailable && (
+              <button
+                type="button"
+                onClick={listening ? stopListening : startListening}
+                disabled={disabled}
+                className="absolute top-1/2 -translate-y-1/2 flex items-center justify-center rounded-md transition-colors duration-150 disabled:opacity-40"
+                style={{
+                  right: "52px",
+                  width: "32px",
+                  height: "32px",
+                  background: listening ? "var(--destructive)" : "transparent",
+                  border: "none",
+                  color: listening ? "white" : "var(--text-muted)",
+                  cursor: "pointer",
+                }}
+                aria-label={listening ? "Stop listening" : "Speak to search"}
+                title={listening ? "Stop listening" : "Say the song or artist name"}
+              >
+                {listening ? (
+                  // Stop / waveform icon when recording
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+                    <rect x="6" y="6" width="12" height="12" rx="2" />
+                  </svg>
+                ) : (
+                  // Mic icon
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+                    <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.93V20H9v2h6v-2h-2v-2.07A7 7 0 0 0 19 11h-2z" />
+                  </svg>
+                )}
+              </button>
+            )}
+
             {/* Hit power indicator */}
             <span
               className="font-display absolute top-1/2 -translate-y-1/2"
@@ -112,10 +219,11 @@ export function GuessInput({ onGuess, onGiveUp, onSkip, canSkip, disabled }: Gue
             >
               {currentHitDamage} HP
             </span>
+
             {searching && (
               <div
                 className="absolute top-1/2 -translate-y-1/2"
-                style={{ right: "80px" }}
+                style={{ right: speechAvailable ? "94px" : "80px" }}
               >
                 <div className="w-4 h-4 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
               </div>
@@ -206,6 +314,14 @@ export function GuessInput({ onGuess, onGiveUp, onSkip, canSkip, disabled }: Gue
         )}
       </div>
 
+      {/* Listening indicator */}
+      {listening && (
+        <div className="flex items-center gap-2" style={{ color: "var(--destructive)" }}>
+          <span className="w-2 h-2 rounded-full bg-[var(--destructive)] animate-pulse" />
+          <span className="text-caption">Listening... say the song or artist name</span>
+        </div>
+      )}
+
       {/* Give up button */}
       <button
         onClick={onGiveUp}
@@ -214,9 +330,7 @@ export function GuessInput({ onGuess, onGiveUp, onSkip, canSkip, disabled }: Gue
         style={{ padding: "20px" }}
         aria-label={`Give up — lose ${giveUpDamage} HP`}
       >
-        <span
-          className="text-body-2 font-medium text-[var(--text-muted)] transition-colors duration-150 group-hover:text-[var(--text-secondary)]"
-        >
+        <span className="text-body-2 font-medium text-[var(--text-muted)] transition-colors duration-150 group-hover:text-[var(--text-secondary)]">
           I Give up
         </span>
         <span
