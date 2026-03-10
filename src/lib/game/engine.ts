@@ -160,7 +160,9 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case "REPLACE_POOL": {
       const played = state.songPool.slice(0, state.currentSongIndex);
-      return { ...state, songPool: [...played, ...action.songs] };
+      const playedIds = new Set(played.map(s => s.id));
+      const unplayed = action.songs.filter(s => !playedIds.has(s.id));
+      return { ...state, songPool: [...played, ...unplayed] };
     }
 
     case "SHOW_VS": {

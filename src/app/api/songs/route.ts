@@ -558,7 +558,7 @@ async function gatherTracks(
   allTracks = shuffle(allTracks).filter(t => {
     const mainArtist = t.artists[0]?.name ?? "unknown";
     artistCount[mainArtist] = (artistCount[mainArtist] ?? 0) + 1;
-    return artistCount[mainArtist] <= 4;
+    return artistCount[mainArtist] <= 2;
   });
 
   allTracks = allTracks

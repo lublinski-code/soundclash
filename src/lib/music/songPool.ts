@@ -11,7 +11,7 @@ function shuffle<T>(arr: T[]): T[] {
 
 export function spaceArtists<T extends { artists: { name: string }[] }>(
   tracks: T[],
-  minGap = 8
+  minGap = 10
 ): T[] {
   const result: T[] = [];
   const remaining = [...tracks];
@@ -26,7 +26,20 @@ export function spaceArtists<T extends { artists: { name: string }[] }>(
       return idx - last >= minGap;
     });
 
-    const chosen = pick === -1 ? 0 : pick;
+    let chosen: number;
+    if (pick !== -1) {
+      chosen = pick;
+    } else {
+      // Fallback: pick the track whose artist was seen longest ago
+      chosen = remaining.reduce((bestIdx, t, i) => {
+        const artistCurr = t.artists[0]?.name ?? "unknown";
+        const artistBest = remaining[bestIdx].artists[0]?.name ?? "unknown";
+        const lastCurr = lastSeen.get(artistCurr) ?? -Infinity;
+        const lastBest = lastSeen.get(artistBest) ?? -Infinity;
+        return lastCurr < lastBest ? i : bestIdx;
+      }, 0);
+    }
+
     const [track] = remaining.splice(chosen, 1);
     result.push(track);
     lastSeen.set(track.artists[0]?.name ?? "unknown", idx);
