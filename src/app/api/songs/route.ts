@@ -199,14 +199,32 @@ type RawTrack = {
 };
 
 async function spFetch<T>(endpoint: string, token: string): Promise<T | null> {
-  const resp = await fetch(`${BASE}${endpoint}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!resp.ok) {
-    console.warn(`[API/songs] ${resp.status} on ${endpoint.split("?")[0]}`);
+  try {
+    const resp = await fetch(`${BASE}${endpoint}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (resp.status === 401) {
+      throw new Error("Spotify token expired or invalid");
+    }
+    if (resp.status === 429) {
+      console.warn(`[API/songs] Rate limited on ${endpoint.split("?")[0]}`);
+      const retryAfter = resp.headers.get("Retry-After");
+      if (retryAfter) {
+        await new Promise(r => setTimeout(r, Math.min(parseInt(retryAfter) * 1000, 3000)));
+      }
+      return null;
+    }
+    if (!resp.ok) {
+      console.warn(`[API/songs] ${resp.status} on ${endpoint.split("?")[0]}`);
+      return null;
+    }
+    return resp.json();
+  } catch (err) {
+    if (err instanceof Error && err.message.includes("expired")) throw err;
+    console.warn(`[API/songs] Fetch error on ${endpoint.split("?")[0]}:`, err);
     return null;
   }
-  return resp.json();
 }
 
 function shuffle<T>(arr: T[]): T[] {
@@ -432,23 +450,29 @@ async function gatherTracks(
 
   let allTracks: RawTrack[] = [];
 
-  // ── Strategy 1: Artist-based search with year filter ──
-  for (const genre of genres) {
-    const artists = shuffle(GENRE_ARTISTS[genre] ?? []);
-    for (const artist of artists) {
-      const query = `artist:${artist}${yearFilter}`;
-      const offset = Math.floor(Math.random() * 5);
-      const tracks = await searchForTracks(query, token, 20, offset, market);
-
-      const normalQ = artist.toLowerCase().replace(/[^a-z0-9]/g, "");
-      const verified = tracks.filter(t =>
-        t.artists.some(a => {
-          const normalA = a.name.toLowerCase().replace(/[^a-z0-9]/g, "");
-          return normalA.includes(normalQ) || normalQ.includes(normalA);
-        })
-      );
-      allTracks.push(...verified);
+  // ── Strategy 1: Artist-based search with year filter (parallelized) ──
+  {
+    const searches: Promise<RawTrack[]>[] = [];
+    for (const genre of genres) {
+      const artists = shuffle(GENRE_ARTISTS[genre] ?? []);
+      for (const artist of artists) {
+        const query = `artist:${artist}${yearFilter}`;
+        const offset = Math.floor(Math.random() * 5);
+        const normalQ = artist.toLowerCase().replace(/[^a-z0-9]/g, "");
+        searches.push(
+          searchForTracks(query, token, 20, offset, market).then(tracks =>
+            tracks.filter(t =>
+              t.artists.some(a => {
+                const normalA = a.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+                return normalA.includes(normalQ) || normalQ.includes(normalA);
+              })
+            )
+          )
+        );
+      }
     }
+    const results = await Promise.all(searches);
+    allTracks.push(...results.flat());
   }
   allTracks = dedupTracks(allTracks).filter(t => !excludeIds.has(t.id) && isValidTrack(t, popularityFloor));
   console.log(`[API/songs] Strategy 1 (artist search): ${allTracks.length} tracks`);
@@ -573,6 +597,11 @@ async function resolvePreviews(
   return previewMap;
 }
 
+/**
+ * Quick mode now uses the same robust multi-strategy pipeline as the full
+ * fetch, parallelizing artist searches and falling back through genre tags
+ * and recommendations. It then resolves previews and returns the first N.
+ */
 async function handleQuickFetch(
   genres: string[],
   eras: string[],
@@ -581,54 +610,71 @@ async function handleQuickFetch(
 ) {
   const ccToken = await getClientCredentialsToken();
   const yearFilter = buildYearFilter(eras);
-  const popularityFloor = yearFilter ? 35 : 50;
-  const targetCandidates = quickCount * 8;
-  const candidates: RawTrack[] = [];
-  const seenIds = new Set<string>();
+  const popularityFloor = yearFilter ? 30 : 45;
 
-  // Artist search
+  console.log(`[API/songs] Quick fetch: genres=[${genres}], eras=[${eras}], floor=${popularityFloor}`);
+
+  // Parallel artist searches — fire all at once instead of sequentially
+  const artistSearches: Promise<RawTrack[]>[] = [];
   for (const genre of genres) {
-    const artists = shuffle(GENRE_ARTISTS[genre] ?? []).slice(0, 15);
+    const artists = shuffle(GENRE_ARTISTS[genre] ?? []).slice(0, 10);
     for (const artist of artists) {
-      if (candidates.length >= targetCandidates) break;
-      const offset = Math.floor(Math.random() * 5);
       const query = `artist:${artist}${yearFilter}`;
-      const tracks = await searchForTracks(query, ccToken, 10, offset, market);
-
       const normalQ = artist.toLowerCase().replace(/[^a-z0-9]/g, "");
-      for (const t of tracks) {
-        if (candidates.length >= targetCandidates) break;
-        if (seenIds.has(t.id)) continue;
-        if (!isValidTrack(t, popularityFloor)) continue;
-        const matchesArtist = t.artists.some(a => {
-          const normalA = a.name.toLowerCase().replace(/[^a-z0-9]/g, "");
-          return normalA.includes(normalQ) || normalQ.includes(normalA);
-        });
-        if (!matchesArtist) continue;
-        seenIds.add(t.id);
-        candidates.push(t);
-      }
+      artistSearches.push(
+        searchForTracks(query, ccToken, 10, 0, market).then(tracks =>
+          tracks.filter(t =>
+            t.artists.some(a => {
+              const normalA = a.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+              return normalA.includes(normalQ) || normalQ.includes(normalA);
+            })
+          )
+        )
+      );
     }
-    if (candidates.length >= targetCandidates) break;
   }
 
-  // Genre tag fallback for quick mode
-  if (candidates.length < quickCount * 3) {
+  // Also fire genre tag searches in parallel
+  const genreSearches: Promise<RawTrack[]>[] = [];
+  for (const genre of genres) {
+    const tags = GENRE_SEARCH_TAGS[genre] ?? [genre];
+    for (const tag of shuffle(tags).slice(0, 2)) {
+      genreSearches.push(
+        searchForTracks(`genre:"${tag}"${yearFilter}`, ccToken, 20, 0, market)
+      );
+    }
+  }
+
+  const [artistResults, genreResults] = await Promise.all([
+    Promise.all(artistSearches),
+    Promise.all(genreSearches),
+  ]);
+
+  let candidates = [
+    ...artistResults.flat(),
+    ...genreResults.flat(),
+  ];
+
+  candidates = dedupTracks(candidates).filter(t => isValidTrack(t, popularityFloor));
+  console.log(`[API/songs] Quick mode: ${candidates.length} candidates after filter`);
+
+  // If still too few, try without year filter
+  if (candidates.length < quickCount * 3 && yearFilter) {
+    const fallbackSearches: Promise<RawTrack[]>[] = [];
     for (const genre of genres) {
       const tags = GENRE_SEARCH_TAGS[genre] ?? [genre];
       for (const tag of shuffle(tags).slice(0, 2)) {
-        const query = `genre:"${tag}"${yearFilter}`;
-        const tracks = await searchForTracks(query, ccToken, 20, 0, market);
-        for (const t of tracks) {
-          if (seenIds.has(t.id)) continue;
-          if (!isValidTrack(t, popularityFloor)) continue;
-          seenIds.add(t.id);
-          candidates.push(t);
-        }
+        fallbackSearches.push(searchForTracks(`genre:"${tag}"`, ccToken, 20, 0, market));
       }
     }
+    const fallbackResults = await Promise.all(fallbackSearches);
+    const existingIds = new Set(candidates.map(t => t.id));
+    const fallback = fallbackResults.flat().filter(t => !existingIds.has(t.id) && isValidTrack(t, popularityFloor));
+    candidates.push(...fallback);
+    console.log(`[API/songs] Quick mode after fallback: ${candidates.length} candidates`);
   }
 
+  // Resolve previews
   const previewMap = new Map<string, string>();
   for (const t of candidates) {
     if (t.preview_url) previewMap.set(t.id, t.preview_url);
@@ -645,7 +691,9 @@ async function handleQuickFetch(
   const withPreviews = candidates.filter(t => previewMap.has(t.id));
   console.log(`[API/songs] Quick mode: ${withPreviews.length} with previews from ${candidates.length} candidates`);
 
-  const result = shuffle(withPreviews)
+  // Sort by popularity and take top N
+  const result = withPreviews
+    .sort((a, b) => b.popularity - a.popularity)
     .slice(0, quickCount)
     .map(t => toResponseTrack(t, previewMap.get(t.id)!));
 
