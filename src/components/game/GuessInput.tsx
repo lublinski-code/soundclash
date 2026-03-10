@@ -200,7 +200,7 @@ export function GuessInput({ onGuess, onGiveUp, onSkip, canSkip, disabled }: Gue
               }}
             />
 
-            {/* Mic button — no background, left of HP */}
+            {/* Mic button — no background, left of HP with clear gap */}
             {speechAvailable && (
               <button
                 type="button"
@@ -208,7 +208,7 @@ export function GuessInput({ onGuess, onGiveUp, onSkip, canSkip, disabled }: Gue
                 disabled={disabled}
                 className="absolute top-1/2 -translate-y-1/2 flex items-center justify-center rounded-md transition-colors duration-150 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-[var(--ring)] focus-visible:outline-offset-2"
                 style={{
-                  right: "52px",
+                  right: "92px",
                   width: "32px",
                   height: "32px",
                   background: "transparent",
@@ -248,7 +248,7 @@ export function GuessInput({ onGuess, onGiveUp, onSkip, canSkip, disabled }: Gue
             {searching && (
               <div
                 className="absolute top-1/2 -translate-y-1/2"
-                style={{ right: speechAvailable ? "94px" : "80px" }}
+                style={{ right: speechAvailable ? "134px" : "80px" }}
               >
                 <div className="w-4 h-4 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
               </div>
