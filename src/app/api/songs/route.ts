@@ -3,23 +3,40 @@ import { getClientCredentialsToken } from "@/lib/spotify/clientToken";
 
 const BASE = "https://api.spotify.com/v1";
 
-// Era playlists removed — they are genre-agnostic ("All Out 80s" includes
-// latin, pop, disco, etc.) which pollutes genre-specific pools. Eras are now
-// handled purely via the year: filter on artist-based searches.
+// Spotify genre tags for search queries — these map to Spotify's internal genre taxonomy
+const GENRE_SEARCH_TAGS: Record<string, string[]> = {
+  rock: ["rock", "classic rock", "hard rock", "arena rock", "album rock"],
+  pop: ["pop", "dance pop", "synthpop", "europop", "pop rock"],
+  metal: ["metal", "heavy metal", "thrash metal", "hard rock", "glam metal"],
+  "hip-hop": ["hip hop", "rap", "gangsta rap", "east coast hip hop", "west coast hip hop"],
+  dance: ["dance", "edm", "house", "dance pop", "eurodance"],
+  electronic: ["electronic", "electro", "synthwave", "new wave", "industrial"],
+  "r-n-b": ["r&b", "urban contemporary", "new jack swing", "soul", "quiet storm"],
+  jazz: ["jazz", "smooth jazz", "vocal jazz", "bebop", "cool jazz"],
+  classical: ["classical", "romantic era", "baroque", "classical performance"],
+  country: ["country", "classic country", "country rock", "outlaw country"],
+  blues: ["blues", "electric blues", "blues rock", "soul blues"],
+  reggae: ["reggae", "roots reggae", "dancehall", "ska"],
+  punk: ["punk", "punk rock", "pop punk", "hardcore punk", "skate punk"],
+  soul: ["soul", "motown", "northern soul", "southern soul", "neo soul"],
+  indie: ["indie rock", "indie pop", "indie", "alternative", "shoegaze"],
+  latin: ["latin", "reggaeton", "latin pop", "salsa", "bachata"],
+  funk: ["funk", "p funk", "soul", "boogie"],
+  disco: ["disco", "funk", "dance", "hi-nrg"],
+  alternative: ["alternative", "alternative rock", "post-punk", "new wave", "britpop"],
+  grunge: ["grunge", "alternative rock", "post-grunge", "seattle"],
+};
 
 const GENRE_ARTISTS: Record<string, string[]> = {
   rock: [
-    // Spans all decades so any era filter finds material
     "Queen", "Led Zeppelin", "AC/DC", "The Rolling Stones", "Nirvana",
     "Foo Fighters", "Red Hot Chili Peppers", "U2", "Bon Jovi", "Aerosmith",
     "The Beatles", "Pink Floyd", "Guns N' Roses", "Green Day", "Coldplay",
     "Muse", "Oasis", "The Who", "Linkin Park", "Arctic Monkeys",
-    // 80s rock coverage
     "Journey", "Def Leppard", "Van Halen", "Scorpions", "Foreigner",
     "Dire Straits", "Bryan Adams", "ZZ Top", "Heart", "Pat Benatar",
     "Toto", "REO Speedwagon", "Whitesnake", "Boston", "Styx",
     "The Police", "Tom Petty", "Bruce Springsteen", "Billy Joel", "Fleetwood Mac",
-    // 90s/00s rock coverage
     "Pearl Jam", "Weezer", "Smashing Pumpkins", "Stone Temple Pilots",
     "Creed", "3 Doors Down", "Nickelback", "The Killers", "Kings of Leon",
     "Imagine Dragons", "Twenty One Pilots", "Fall Out Boy", "Paramore",
@@ -29,14 +46,11 @@ const GENRE_ARTISTS: Record<string, string[]> = {
     "The Weeknd", "Billie Eilish", "Justin Bieber", "Ariana Grande", "Lady Gaga",
     "Rihanna", "Katy Perry", "Beyoncé", "Shakira", "Michael Jackson",
     "Madonna", "Olivia Rodrigo", "Harry Styles", "Doja Cat", "SZA",
-    // 80s pop
     "Prince", "Whitney Houston", "George Michael", "Phil Collins", "Cyndi Lauper",
     "Duran Duran", "a-ha", "Tears for Fears", "Eurythmics", "Wham!",
     "Lionel Richie", "Culture Club", "Hall & Oates", "Rick Astley", "Pet Shop Boys",
-    // 90s pop
     "Backstreet Boys", "NSYNC", "Spice Girls", "TLC", "Britney Spears",
     "Christina Aguilera", "Mariah Carey", "Celine Dion", "Alanis Morissette",
-    // 00s/10s pop
     "Amy Winehouse", "Lorde", "Miley Cyrus", "Sia", "Sam Smith",
     "Elton John", "Robbie Williams", "Coldplay", "OneRepublic",
   ],
@@ -57,7 +71,6 @@ const GENRE_ARTISTS: Record<string, string[]> = {
     "Tupac", "Notorious B.I.G.", "Snoop Dogg", "Travis Scott", "J. Cole",
     "Nas", "Lil Wayne", "50 Cent", "Post Malone", "Dr. Dre",
     "OutKast", "Nicki Minaj", "Cardi B", "Tyler, The Creator", "A$AP Rocky",
-    // 80s/90s hip-hop
     "Run-D.M.C.", "Beastie Boys", "N.W.A", "LL Cool J", "Public Enemy",
     "Wu-Tang Clan", "A Tribe Called Quest", "De La Soul", "Ice Cube", "DMX",
     "Missy Elliott", "Lauryn Hill", "Busta Rhymes", "Method Man",
@@ -256,10 +269,6 @@ async function searchForTracks(
   return data?.tracks?.items ?? [];
 }
 
-/**
- * Batch-fetch preview_url for track IDs using the provided Spotify token.
- * Returns a map of trackId → previewUrl.
- */
 async function batchFetchSpotifyPreviews(
   trackIds: string[],
   token: string,
@@ -284,12 +293,55 @@ async function batchFetchSpotifyPreviews(
   return previews;
 }
 
-type ItunesResult = { artistName: string; trackName: string; previewUrl?: string };
+/**
+ * Use Spotify's recommendations endpoint to find tracks seeded by artist IDs.
+ * Returns up to `limit` tracks. This is the best way to discover genre-appropriate
+ * tracks that Spotify itself considers related.
+ */
+async function fetchRecommendations(
+  seedArtistIds: string[],
+  token: string,
+  limit: number,
+  market: string,
+  minPopularity: number
+): Promise<RawTrack[]> {
+  const params = new URLSearchParams({
+    seed_artists: seedArtistIds.slice(0, 5).join(","),
+    limit: String(Math.min(limit, 100)),
+    market,
+    min_popularity: String(minPopularity),
+  });
+  const data = await spFetch<{ tracks: RawTrack[] }>(
+    `/recommendations?${params}`,
+    token
+  );
+  return data?.tracks ?? [];
+}
 
 /**
- * Fetch iTunes Search results for an artist name.
- * iTunes provides free 30-second previews with no auth.
+ * Look up a Spotify artist ID by name.
  */
+async function resolveArtistId(
+  name: string,
+  token: string,
+  market?: string
+): Promise<string | null> {
+  const params = new URLSearchParams({ q: name, type: "artist", limit: "1" });
+  if (market) params.set("market", market);
+  const data = await spFetch<{ artists?: { items: { id: string; name: string }[] } }>(
+    `/search?${params}`,
+    token
+  );
+  const items = data?.artists?.items;
+  if (!items?.length) return null;
+  const normalQ = name.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const normalA = items[0].name.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (normalA.includes(normalQ) || normalQ.includes(normalA)) return items[0].id;
+  return null;
+}
+
+type ItunesResult = { artistName: string; trackName: string; previewUrl?: string };
+
 async function fetchItunesForArtist(artistName: string): Promise<ItunesResult[]> {
   try {
     const resp = await fetch(
@@ -304,14 +356,9 @@ async function fetchItunesForArtist(artistName: string): Promise<ItunesResult[]>
   }
 }
 
-/**
- * For tracks missing a preview URL, query iTunes by artist and match by track name.
- * Groups by primary artist to minimise API calls.
- */
 async function enrichWithItunesPreviews(tracks: RawTrack[]): Promise<Map<string, string>> {
   const previewMap = new Map<string, string>();
 
-  // Group by primary artist
   const artistGroups = new Map<string, RawTrack[]>();
   for (const track of tracks) {
     const artist = track.artists[0]?.name ?? "";
@@ -319,7 +366,6 @@ async function enrichWithItunesPreviews(tracks: RawTrack[]): Promise<Map<string,
     artistGroups.get(artist)!.push(track);
   }
 
-  // Parallel iTunes searches — one per unique artist
   await Promise.all(
     [...artistGroups.entries()].map(async ([artistName, artistTracks]) => {
       const results = await fetchItunesForArtist(artistName);
@@ -357,10 +403,176 @@ function toResponseTrack(t: RawTrack, previewUrl: string) {
   };
 }
 
+function dedupTracks(tracks: RawTrack[]): RawTrack[] {
+  const seen = new Set<string>();
+  return tracks.filter(t => {
+    if (seen.has(t.id)) return false;
+    seen.add(t.id);
+    return true;
+  });
+}
+
 /**
- * Quick mode: search a handful of artists, return the first N tracks with previews.
- * Uses preview_url from search results first, falls back to iTunes for the small batch.
+ * Multi-strategy song fetching pipeline:
+ *   1. Artist-based search (with year filter)
+ *   2. Genre tag search (e.g. "genre:rock year:1990-1999")
+ *   3. Genre tag search without year filter
+ *   4. Spotify recommendations API seeded by resolved artist IDs
  */
+async function gatherTracks(
+  genres: string[],
+  eras: string[],
+  market: string,
+  token: string,
+  excludeIds: Set<string>
+): Promise<RawTrack[]> {
+  const yearFilter = buildYearFilter(eras);
+  const popularityFloor = yearFilter ? 35 : 55;
+  const MIN_POOL = 40;
+
+  let allTracks: RawTrack[] = [];
+
+  // ── Strategy 1: Artist-based search with year filter ──
+  for (const genre of genres) {
+    const artists = shuffle(GENRE_ARTISTS[genre] ?? []);
+    for (const artist of artists) {
+      const query = `artist:${artist}${yearFilter}`;
+      const offset = Math.floor(Math.random() * 5);
+      const tracks = await searchForTracks(query, token, 20, offset, market);
+
+      const normalQ = artist.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const verified = tracks.filter(t =>
+        t.artists.some(a => {
+          const normalA = a.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+          return normalA.includes(normalQ) || normalQ.includes(normalA);
+        })
+      );
+      allTracks.push(...verified);
+    }
+  }
+  allTracks = dedupTracks(allTracks).filter(t => !excludeIds.has(t.id) && isValidTrack(t, popularityFloor));
+  console.log(`[API/songs] Strategy 1 (artist search): ${allTracks.length} tracks`);
+
+  // ── Strategy 2: Genre tag search with year filter ──
+  if (allTracks.length < MIN_POOL) {
+    for (const genre of genres) {
+      const tags = GENRE_SEARCH_TAGS[genre] ?? [genre];
+      for (const tag of shuffle(tags).slice(0, 3)) {
+        for (let offset = 0; offset < 40; offset += 20) {
+          const query = `genre:"${tag}"${yearFilter}`;
+          const tracks = await searchForTracks(query, token, 20, offset, market);
+          allTracks.push(...tracks);
+        }
+      }
+    }
+    allTracks = dedupTracks(allTracks).filter(t => !excludeIds.has(t.id) && isValidTrack(t, popularityFloor));
+    console.log(`[API/songs] Strategy 2 (genre tags + year): ${allTracks.length} tracks`);
+  }
+
+  // ── Strategy 3: Genre tag search WITHOUT year filter ──
+  if (allTracks.length < MIN_POOL) {
+    for (const genre of genres) {
+      const tags = GENRE_SEARCH_TAGS[genre] ?? [genre];
+      for (const tag of shuffle(tags).slice(0, 3)) {
+        for (let offset = 0; offset < 60; offset += 20) {
+          const query = `genre:"${tag}"`;
+          const tracks = await searchForTracks(query, token, 20, offset, market);
+          allTracks.push(...tracks);
+        }
+      }
+    }
+    allTracks = dedupTracks(allTracks).filter(t => !excludeIds.has(t.id) && isValidTrack(t, popularityFloor));
+    console.log(`[API/songs] Strategy 3 (genre tags, no year): ${allTracks.length} tracks`);
+  }
+
+  // ── Strategy 4: Spotify Recommendations API ──
+  if (allTracks.length < MIN_POOL) {
+    const artistIds: string[] = [];
+    for (const genre of genres) {
+      const artists = shuffle(GENRE_ARTISTS[genre] ?? []).slice(0, 5);
+      const resolved = await Promise.all(artists.map(a => resolveArtistId(a, token, market)));
+      artistIds.push(...resolved.filter((id): id is string => id !== null));
+    }
+    if (artistIds.length > 0) {
+      for (let i = 0; i < artistIds.length; i += 5) {
+        const seeds = artistIds.slice(i, i + 5);
+        const recs = await fetchRecommendations(seeds, token, 100, market, popularityFloor);
+        allTracks.push(...recs);
+      }
+      allTracks = dedupTracks(allTracks).filter(t => !excludeIds.has(t.id) && isValidTrack(t, popularityFloor));
+      console.log(`[API/songs] Strategy 4 (recommendations): ${allTracks.length} tracks`);
+    }
+  }
+
+  // ── Strategy 5: Artist search WITHOUT year filter ──
+  if (allTracks.length < MIN_POOL && yearFilter) {
+    for (const genre of genres) {
+      const artists = shuffle(GENRE_ARTISTS[genre] ?? []);
+      for (const artist of artists) {
+        if (allTracks.length >= MIN_POOL * 2) break;
+        const query = `artist:${artist}`;
+        const tracks = await searchForTracks(query, token, 20, 0, market);
+        const normalQ = artist.toLowerCase().replace(/[^a-z0-9]/g, "");
+        const verified = tracks.filter(t =>
+          t.artists.some(a => {
+            const normalA = a.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+            return normalA.includes(normalQ) || normalQ.includes(normalA);
+          })
+        );
+        allTracks.push(...verified);
+      }
+    }
+    allTracks = dedupTracks(allTracks).filter(t => !excludeIds.has(t.id) && isValidTrack(t, popularityFloor));
+    console.log(`[API/songs] Strategy 5 (artists, no year): ${allTracks.length} tracks`);
+  }
+
+  // Artist diversity cap — keep up to 4 tracks per artist
+  const artistCount: Record<string, number> = {};
+  allTracks = shuffle(allTracks).filter(t => {
+    const mainArtist = t.artists[0]?.name ?? "unknown";
+    artistCount[mainArtist] = (artistCount[mainArtist] ?? 0) + 1;
+    return artistCount[mainArtist] <= 4;
+  });
+
+  // Sort by popularity, keep top 200
+  allTracks = allTracks
+    .sort((a, b) => b.popularity - a.popularity)
+    .slice(0, 200);
+
+  return allTracks;
+}
+
+async function resolvePreviews(
+  tracks: RawTrack[],
+  userToken: string | undefined,
+  market: string
+): Promise<Map<string, string>> {
+  let previewMap = new Map<string, string>();
+
+  if (userToken) {
+    previewMap = await batchFetchSpotifyPreviews(tracks.map(t => t.id), userToken, market);
+    console.log(`[API/songs] User-token previews: ${previewMap.size}/${tracks.length}`);
+  }
+
+  for (const t of tracks) {
+    if (!previewMap.has(t.id) && t.preview_url) {
+      previewMap.set(t.id, t.preview_url);
+    }
+  }
+
+  const missing = tracks.filter(t => !previewMap.has(t.id));
+  if (missing.length > 0) {
+    const itunesPreviews = await enrichWithItunesPreviews(missing);
+    console.log(`[API/songs] iTunes previews: ${itunesPreviews.size}/${missing.length}`);
+    for (const [id, url] of itunesPreviews) {
+      previewMap.set(id, url);
+    }
+  }
+
+  console.log(`[API/songs] Total with previews: ${previewMap.size}/${tracks.length}`);
+  return previewMap;
+}
+
 async function handleQuickFetch(
   genres: string[],
   eras: string[],
@@ -369,17 +581,16 @@ async function handleQuickFetch(
 ) {
   const ccToken = await getClientCredentialsToken();
   const yearFilter = buildYearFilter(eras);
-  const popularityFloor = yearFilter ? 40 : 50;
-  // Collect more candidates than needed so iTunes fallback has material to work with
-  const targetCandidates = quickCount * 5;
+  const popularityFloor = yearFilter ? 35 : 50;
+  const targetCandidates = quickCount * 8;
   const candidates: RawTrack[] = [];
   const seenIds = new Set<string>();
 
+  // Artist search
   for (const genre of genres) {
-    const artists = shuffle(GENRE_ARTISTS[genre] ?? []).slice(0, 12);
+    const artists = shuffle(GENRE_ARTISTS[genre] ?? []).slice(0, 15);
     for (const artist of artists) {
       if (candidates.length >= targetCandidates) break;
-
       const offset = Math.floor(Math.random() * 5);
       const query = `artist:${artist}${yearFilter}`;
       const tracks = await searchForTracks(query, ccToken, 10, offset, market);
@@ -401,16 +612,30 @@ async function handleQuickFetch(
     if (candidates.length >= targetCandidates) break;
   }
 
-  // Build preview map from embedded preview_url first
+  // Genre tag fallback for quick mode
+  if (candidates.length < quickCount * 3) {
+    for (const genre of genres) {
+      const tags = GENRE_SEARCH_TAGS[genre] ?? [genre];
+      for (const tag of shuffle(tags).slice(0, 2)) {
+        const query = `genre:"${tag}"${yearFilter}`;
+        const tracks = await searchForTracks(query, ccToken, 20, 0, market);
+        for (const t of tracks) {
+          if (seenIds.has(t.id)) continue;
+          if (!isValidTrack(t, popularityFloor)) continue;
+          seenIds.add(t.id);
+          candidates.push(t);
+        }
+      }
+    }
+  }
+
   const previewMap = new Map<string, string>();
   for (const t of candidates) {
     if (t.preview_url) previewMap.set(t.id, t.preview_url);
   }
 
-  // iTunes fallback for tracks missing preview_url (fast: parallel by artist)
   const missing = candidates.filter(t => !previewMap.has(t.id));
   if (missing.length > 0) {
-    console.log(`[API/songs] Quick mode: iTunes fallback for ${missing.length} tracks`);
     const itunesPreviews = await enrichWithItunesPreviews(missing);
     for (const [id, url] of itunesPreviews) {
       previewMap.set(id, url);
@@ -418,7 +643,7 @@ async function handleQuickFetch(
   }
 
   const withPreviews = candidates.filter(t => previewMap.has(t.id));
-  console.log(`[API/songs] Quick mode: ${withPreviews.length} tracks with previews from ${candidates.length} candidates`);
+  console.log(`[API/songs] Quick mode: ${withPreviews.length} with previews from ${candidates.length} candidates`);
 
   const result = shuffle(withPreviews)
     .slice(0, quickCount)
@@ -429,13 +654,14 @@ async function handleQuickFetch(
 
 export async function POST(request: Request) {
   try {
-    const { genres, eras, market, userToken, quick, quickCount } = (await request.json()) as {
+    const { genres, eras, market, userToken, quick, quickCount, excludeIds } = (await request.json()) as {
       genres: string[];
       eras: string[];
       market: string;
       userToken?: string;
       quick?: boolean;
       quickCount?: number;
+      excludeIds?: string[];
     };
 
     if (!genres?.length) {
@@ -449,120 +675,10 @@ export async function POST(request: Request) {
     }
 
     const ccToken = await getClientCredentialsToken();
-    const yearFilter = buildYearFilter(eras);
-    // Spotify popularity is recency-weighted, so older hits score lower.
-    // Genre pollution is prevented by artist verification, not the floor.
-    const popularityFloor = yearFilter ? 40 : 60;
+    const exclude = new Set(excludeIds ?? []);
 
-    let allTracks: RawTrack[] = [];
-
-    const MIN_POOL_SIZE = 30;
-
-    // Search all genre artists with the year filter
-    for (const genre of genres) {
-      const artists = GENRE_ARTISTS[genre] ?? [];
-      const shuffled = shuffle(artists);
-
-      for (const artist of shuffled) {
-        const offset = Math.floor(Math.random() * 5);
-        const query = `artist:${artist}${yearFilter}`;
-        const tracks = await searchForTracks(query, ccToken, 20, offset, mkt);
-
-        const normalQ = artist.toLowerCase().replace(/[^a-z0-9]/g, "");
-        const verified = tracks.filter(t =>
-          t.artists.some(a => {
-            const normalA = a.name.toLowerCase().replace(/[^a-z0-9]/g, "");
-            return normalA.includes(normalQ) || normalQ.includes(normalA);
-          })
-        );
-        allTracks.push(...verified);
-      }
-    }
-
-    // Dedup
-    const seen = new Set<string>();
-    allTracks = allTracks.filter(t => {
-      if (seen.has(t.id)) return false;
-      seen.add(t.id);
-      return true;
-    });
-
-    // Filter
-    allTracks = allTracks.filter(t => isValidTrack(t, popularityFloor));
-    console.log(`[API/songs] After filtering: ${allTracks.length} tracks`);
-
-    // Fallback: if pool is too thin and we used a year filter, re-search
-    // without it to fill the gap (still genre-correct via artist lists)
-    if (allTracks.length < MIN_POOL_SIZE && yearFilter) {
-      console.log(`[API/songs] Pool too small (${allTracks.length}), running fallback without year filter`);
-      const existingIds = new Set(allTracks.map(t => t.id));
-
-      for (const genre of genres) {
-        const artists = shuffle(GENRE_ARTISTS[genre] ?? []);
-        for (const artist of artists) {
-          if (allTracks.length >= MIN_POOL_SIZE * 2) break;
-          const query = `artist:${artist}`;
-          const tracks = await searchForTracks(query, ccToken, 20, 0, mkt);
-
-          const normalQ = artist.toLowerCase().replace(/[^a-z0-9]/g, "");
-          const verified = tracks.filter(t => {
-            if (existingIds.has(t.id)) return false;
-            if (!isValidTrack(t, popularityFloor)) return false;
-            return t.artists.some(a => {
-              const normalA = a.name.toLowerCase().replace(/[^a-z0-9]/g, "");
-              return normalA.includes(normalQ) || normalQ.includes(normalA);
-            });
-          });
-          for (const t of verified) {
-            existingIds.add(t.id);
-            allTracks.push(t);
-          }
-        }
-        if (allTracks.length >= MIN_POOL_SIZE * 2) break;
-      }
-      console.log(`[API/songs] After fallback: ${allTracks.length} tracks`);
-    }
-
-    // Artist diversity cap — scale with pool size to avoid starvation
-    const maxPerArtist = allTracks.length < MIN_POOL_SIZE ? 5 : 3;
-    const artistCount: Record<string, number> = {};
-    allTracks = shuffle(allTracks).filter(t => {
-      const mainArtist = t.artists[0]?.name ?? "unknown";
-      artistCount[mainArtist] = (artistCount[mainArtist] ?? 0) + 1;
-      return artistCount[mainArtist] <= maxPerArtist;
-    });
-
-    // Sort by popularity descending so the most recognisable songs survive the trim
-    allTracks = allTracks
-      .sort((a, b) => b.popularity - a.popularity)
-      .slice(0, 200);
-
-    // Layer 1: user token batch fetch (most reliable for Spotify preview_url)
-    let previewMap = new Map<string, string>();
-    if (userToken) {
-      previewMap = await batchFetchSpotifyPreviews(allTracks.map(t => t.id), userToken, mkt);
-      console.log(`[API/songs] Spotify user-token previews: ${previewMap.size}/${allTracks.length}`);
-    }
-
-    // Layer 2: CC token preview_url already embedded in search/playlist results
-    for (const t of allTracks) {
-      if (!previewMap.has(t.id) && t.preview_url) {
-        previewMap.set(t.id, t.preview_url);
-      }
-    }
-    console.log(`[API/songs] After Spotify CC fallback: ${previewMap.size}/${allTracks.length}`);
-
-    // Layer 3: iTunes Search API — free, no auth, reliable 30s previews
-    const missingPreviews = allTracks.filter(t => !previewMap.has(t.id));
-    if (missingPreviews.length > 0) {
-      const itunesPreviews = await enrichWithItunesPreviews(missingPreviews);
-      console.log(`[API/songs] iTunes previews found: ${itunesPreviews.size}/${missingPreviews.length}`);
-      for (const [id, url] of itunesPreviews) {
-        previewMap.set(id, url);
-      }
-    }
-
-    console.log(`[API/songs] Total tracks with previews: ${previewMap.size}/${allTracks.length}`);
+    const allTracks = await gatherTracks(genres, eras ?? [], mkt, ccToken, exclude);
+    const previewMap = await resolvePreviews(allTracks, userToken, mkt);
 
     const result = allTracks
       .filter(t => previewMap.has(t.id))

@@ -106,7 +106,8 @@ export async function buildQuickSong(
 
 export async function buildSongPool(
   config: GameConfig,
-  targetSize = 60
+  targetSize = 60,
+  excludeIds: string[] = []
 ): Promise<SpotifyTrack[]> {
   const { genres, eras, market } = config;
 
@@ -115,14 +116,14 @@ export async function buildSongPool(
     return [];
   }
 
-  console.log(`[SongPool] Building pool: genres=[${genres.join(", ")}], eras=[${(eras ?? []).join(", ")}], market=${market}`);
+  console.log(`[SongPool] Building pool: genres=[${genres.join(", ")}], eras=[${(eras ?? []).join(", ")}], market=${market}, excluding=${excludeIds.length} songs`);
 
   const userToken = await getAccessToken();
 
   const resp = await fetch("/api/songs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ genres, eras, market, userToken }),
+    body: JSON.stringify({ genres, eras, market, userToken, excludeIds }),
   });
 
   if (!resp.ok) {
@@ -140,4 +141,18 @@ export async function buildSongPool(
   console.log(`[SongPool] Final pool: ${result.length} tracks`);
 
   return result;
+}
+
+/**
+ * Replenish the song pool during gameplay when songs are running low.
+ * Excludes songs already in the current pool to avoid repeats.
+ */
+export async function replenishPool(
+  config: GameConfig,
+  existingPool: SpotifyTrack[],
+  targetSize = 40
+): Promise<SpotifyTrack[]> {
+  const excludeIds = existingPool.map(s => s.id);
+  console.log(`[SongPool] Replenishing pool, excluding ${excludeIds.length} existing songs`);
+  return buildSongPool(config, targetSize, excludeIds);
 }

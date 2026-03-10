@@ -10,6 +10,7 @@ import { DamageOverlay } from "@/components/game/DamageOverlay";
 import { AlbumReveal } from "@/components/game/AlbumReveal";
 import { KoScreen } from "@/components/game/KoScreen";
 import { playPreview, stopPreview } from "@/lib/spotify/player";
+import { replenishPool } from "@/lib/spotify/songPool";
 
 export default function GamePage() {
   const router = useRouter();
@@ -27,15 +28,37 @@ export default function GamePage() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [snippetPlayed, setSnippetPlayed] = useState(false);
   const snippetStartOffsetRef = useRef<number | null>(null);
+  const replenishingRef = useRef(false);
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (phase === "LOBBY" || songPool.length === 0) {
+      if (phase === "LOBBY") {
         router.replace("/setup");
       }
     }, 150);
     return () => clearTimeout(timer);
-  }, [phase, songPool, router]);
+  }, [phase, router]);
+
+  // Auto-replenish pool when running low (5 songs left)
+  useEffect(() => {
+    const songsRemaining = songPool.length - currentSongIndex;
+    if (songsRemaining > 5 || replenishingRef.current || phase === "KO" || phase === "LOBBY") return;
+
+    replenishingRef.current = true;
+    console.log(`[Game] Pool running low (${songsRemaining} left), replenishing...`);
+
+    replenishPool(config, songPool)
+      .then((newSongs) => {
+        if (newSongs.length > 0) {
+          useGameStore.getState().dispatch({ type: "ADD_SONGS", songs: newSongs });
+          console.log(`[Game] Replenished pool with ${newSongs.length} songs`);
+        }
+      })
+      .catch((err) => console.warn("[Game] Replenish failed:", err))
+      .finally(() => {
+        replenishingRef.current = false;
+      });
+  }, [songPool, currentSongIndex, config, phase]);
 
   useEffect(() => {
     if (phase === "VS_SCREEN") {
@@ -159,20 +182,57 @@ export default function GamePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, currentSnippetLevel]);
 
+  const [poolExhausted, setPoolExhausted] = useState(false);
+  const retryingRef = useRef(false);
+
+  useEffect(() => {
+    if (currentSong || phase === "KO" || phase === "LOBBY") {
+      setPoolExhausted(false);
+      return;
+    }
+
+    if (retryingRef.current) return;
+    retryingRef.current = true;
+
+    console.log("[Game] No current song, attempting emergency replenish...");
+    replenishPool(config, songPool)
+      .then((newSongs) => {
+        if (newSongs.length > 0) {
+          useGameStore.getState().dispatch({ type: "ADD_SONGS", songs: newSongs });
+          console.log(`[Game] Emergency replenish: ${newSongs.length} songs`);
+        } else {
+          setPoolExhausted(true);
+        }
+      })
+      .catch(() => setPoolExhausted(true))
+      .finally(() => {
+        retryingRef.current = false;
+      });
+  }, [currentSong, phase, config, songPool]);
+
   if (!currentSong && phase !== "KO") {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <p style={{ color: "var(--text-muted)" }}>No more songs in the pool!</p>
-          <button
-            onClick={() => {
-              dispatch({ type: "RESET" });
-              router.push("/setup");
-            }}
-            className="btn-primary cursor-pointer"
-          >
-            Back to Setup
-          </button>
+          {poolExhausted ? (
+            <>
+              <p style={{ color: "var(--text-muted)" }}>Could not find more songs for this combination.</p>
+              <button
+                onClick={() => {
+                  dispatch({ type: "RESET" });
+                  router.push("/setup");
+                }}
+                className="btn-primary cursor-pointer"
+              >
+                Back to Setup
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="w-6 h-6 border-2 border-[var(--text-muted)] border-t-transparent rounded-full animate-spin mx-auto" />
+              <p style={{ color: "var(--text-muted)" }}>Loading more songs...</p>
+            </>
+          )}
         </div>
       </div>
     );
