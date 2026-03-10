@@ -9,9 +9,9 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-function spaceArtists<T extends { artists: { name: string }[] }>(
+export function spaceArtists<T extends { artists: { name: string }[] }>(
   tracks: T[],
-  minGap = 5
+  minGap = 8
 ): T[] {
   const result: T[] = [];
   const remaining = [...tracks];

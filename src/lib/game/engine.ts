@@ -17,6 +17,7 @@ export type GameState = {
 export type GameAction =
   | { type: "START_GAME"; songPool: Track[] }
   | { type: "ADD_SONGS"; songs: Track[] }
+  | { type: "REPLACE_POOL"; songs: Track[] }
   | { type: "SHOW_VS" }
   | { type: "START_SNIPPET" }
   | { type: "NEXT_SNIPPET" }
@@ -155,6 +156,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case "ADD_SONGS": {
       return { ...state, songPool: [...state.songPool, ...action.songs] };
+    }
+
+    case "REPLACE_POOL": {
+      const played = state.songPool.slice(0, state.currentSongIndex);
+      return { ...state, songPool: [...played, ...action.songs] };
     }
 
     case "SHOW_VS": {

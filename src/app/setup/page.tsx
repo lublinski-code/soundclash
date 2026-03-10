@@ -7,7 +7,7 @@ import { GenrePicker } from "@/components/setup/GenrePicker";
 import { EraPicker } from "@/components/setup/EraPicker";
 import { GameConfigPanel } from "@/components/setup/GameConfig";
 import { useGameStore } from "@/store/gameStore";
-import { buildSongPool, buildQuickSong } from "@/lib/music/songPool";
+import { buildSongPool, buildQuickSong, spaceArtists } from "@/lib/music/songPool";
 import { getRandomGenres } from "@/lib/game/constants";
 
 export default function SetupPage() {
@@ -48,14 +48,15 @@ export default function SetupPage() {
       dispatch({ type: "START_GAME", songPool: quickSongs });
       router.push("/game");
 
-      // Phase 2: background full fetch (fire and forget after navigate)
+      // Phase 2: background full fetch — merge with quick songs and re-space
       buildSongPool(config, 60)
         .then((songs) => {
           const alreadyIn = new Set(quickSongs.map(s => s.id));
           const newSongs = songs.filter(s => !alreadyIn.has(s.id));
           if (newSongs.length > 0) {
-            useGameStore.getState().dispatch({ type: "ADD_SONGS", songs: newSongs });
-            console.log(`[Setup] Background pool added ${newSongs.length} songs`);
+            const combined = spaceArtists([...quickSongs, ...newSongs]);
+            useGameStore.getState().dispatch({ type: "REPLACE_POOL", songs: combined });
+            console.log(`[Setup] Background pool: ${newSongs.length} new songs, ${combined.length} total after re-spacing`);
           }
         })
         .catch((err) => console.warn("[Setup] Background pool fetch failed:", err));
