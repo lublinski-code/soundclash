@@ -87,10 +87,12 @@ export async function buildQuickSong(
 
   console.log(`[SongPool] Quick fetch: ${count} songs for genres=[${genres.join(", ")}]`);
 
+  const userToken = await getAccessToken();
+
   const resp = await fetch("/api/songs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ genres, eras, market, quick: true, quickCount: count }),
+    body: JSON.stringify({ genres, eras, market, quick: true, quickCount: count, userToken }),
   });
 
   if (!resp.ok) {

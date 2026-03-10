@@ -431,11 +431,10 @@ function dedupTracks(tracks: RawTrack[]): RawTrack[] {
 }
 
 /**
- * Multi-strategy song fetching pipeline:
- *   1. Artist-based search (with year filter)
- *   2. Genre tag search (e.g. "genre:rock year:1990-1999")
- *   3. Genre tag search without year filter
- *   4. Spotify recommendations API seeded by resolved artist IDs
+ * Multi-strategy song fetching pipeline — genre-first, artist-enriched.
+ *
+ * Order matters: Spotify's genre tag search is the most reliable broad source.
+ * Artist lists are used as enrichment, not as the primary source.
  */
 async function gatherTracks(
   genres: string[],
@@ -445,12 +444,34 @@ async function gatherTracks(
   excludeIds: Set<string>
 ): Promise<RawTrack[]> {
   const yearFilter = buildYearFilter(eras);
-  const popularityFloor = yearFilter ? 35 : 55;
+  const popularityFloor = yearFilter ? 30 : 50;
   const MIN_POOL = 40;
 
   let allTracks: RawTrack[] = [];
 
-  // ── Strategy 1: Artist-based search with year filter (parallelized) ──
+  // ── Strategy 1: Genre tag search (broad, reliable) ──
+  // This is the primary source. Spotify's own genre taxonomy returns popular,
+  // well-known tracks without needing a hardcoded artist list.
+  {
+    const searches: Promise<RawTrack[]>[] = [];
+    for (const genre of genres) {
+      const tags = GENRE_SEARCH_TAGS[genre] ?? [genre];
+      for (const tag of shuffle(tags).slice(0, 3)) {
+        for (let offset = 0; offset < 100; offset += 50) {
+          searches.push(searchForTracks(`genre:"${tag}"${yearFilter}`, token, 50, offset, market));
+        }
+        if (yearFilter) {
+          searches.push(searchForTracks(`genre:"${tag}"`, token, 50, 0, market));
+        }
+      }
+    }
+    const results = await Promise.all(searches);
+    allTracks.push(...results.flat());
+  }
+  allTracks = dedupTracks(allTracks).filter(t => !excludeIds.has(t.id) && isValidTrack(t, popularityFloor));
+  console.log(`[API/songs] Strategy 1 (genre tags): ${allTracks.length} tracks`);
+
+  // ── Strategy 2: Artist-based search (enrichment, parallelized) ──
   {
     const searches: Promise<RawTrack[]>[] = [];
     for (const genre of genres) {
@@ -475,39 +496,7 @@ async function gatherTracks(
     allTracks.push(...results.flat());
   }
   allTracks = dedupTracks(allTracks).filter(t => !excludeIds.has(t.id) && isValidTrack(t, popularityFloor));
-  console.log(`[API/songs] Strategy 1 (artist search): ${allTracks.length} tracks`);
-
-  // ── Strategy 2: Genre tag search with year filter ──
-  if (allTracks.length < MIN_POOL) {
-    for (const genre of genres) {
-      const tags = GENRE_SEARCH_TAGS[genre] ?? [genre];
-      for (const tag of shuffle(tags).slice(0, 3)) {
-        for (let offset = 0; offset < 40; offset += 20) {
-          const query = `genre:"${tag}"${yearFilter}`;
-          const tracks = await searchForTracks(query, token, 20, offset, market);
-          allTracks.push(...tracks);
-        }
-      }
-    }
-    allTracks = dedupTracks(allTracks).filter(t => !excludeIds.has(t.id) && isValidTrack(t, popularityFloor));
-    console.log(`[API/songs] Strategy 2 (genre tags + year): ${allTracks.length} tracks`);
-  }
-
-  // ── Strategy 3: Genre tag search WITHOUT year filter ──
-  if (allTracks.length < MIN_POOL) {
-    for (const genre of genres) {
-      const tags = GENRE_SEARCH_TAGS[genre] ?? [genre];
-      for (const tag of shuffle(tags).slice(0, 3)) {
-        for (let offset = 0; offset < 60; offset += 20) {
-          const query = `genre:"${tag}"`;
-          const tracks = await searchForTracks(query, token, 20, offset, market);
-          allTracks.push(...tracks);
-        }
-      }
-    }
-    allTracks = dedupTracks(allTracks).filter(t => !excludeIds.has(t.id) && isValidTrack(t, popularityFloor));
-    console.log(`[API/songs] Strategy 3 (genre tags, no year): ${allTracks.length} tracks`);
-  }
+  console.log(`[API/songs] Strategy 2 (artist search): ${allTracks.length} tracks`);
 
   // ── Strategy 4: Spotify Recommendations API ──
   if (allTracks.length < MIN_POOL) {
@@ -598,26 +587,48 @@ async function resolvePreviews(
 }
 
 /**
- * Quick mode now uses the same robust multi-strategy pipeline as the full
- * fetch, parallelizing artist searches and falling back through genre tags
- * and recommendations. It then resolves previews and returns the first N.
+ * Quick mode: genre-first search with user token preview resolution.
+ *
+ * Previous approach failed because:
+ * - CC tokens return preview_url: null for most tracks
+ * - Quick fetch never sent the user token for batch preview resolution
+ * - So even when searches found 100+ tracks, all had null previews → 0 results
+ *
+ * Fix: pass user token through, use batchFetchSpotifyPreviews (same as full pipeline).
  */
 async function handleQuickFetch(
   genres: string[],
   eras: string[],
   market: string,
-  quickCount: number
+  quickCount: number,
+  userToken?: string
 ) {
   const ccToken = await getClientCredentialsToken();
   const yearFilter = buildYearFilter(eras);
-  const popularityFloor = yearFilter ? 30 : 45;
+  const popularityFloor = yearFilter ? 30 : 40;
 
-  console.log(`[API/songs] Quick fetch: genres=[${genres}], eras=[${eras}], floor=${popularityFloor}`);
+  console.log(`[API/songs] Quick fetch: genres=[${genres}], eras=[${eras}], floor=${popularityFloor}, hasUserToken=${!!userToken}`);
 
-  // Parallel artist searches — fire all at once instead of sequentially
+  // ── Genre-first: broad Spotify search by genre tag (most reliable) ──
+  const genreSearches: Promise<RawTrack[]>[] = [];
+  for (const genre of genres) {
+    const tags = GENRE_SEARCH_TAGS[genre] ?? [genre];
+    for (const tag of shuffle(tags).slice(0, 3)) {
+      genreSearches.push(
+        searchForTracks(`genre:"${tag}"${yearFilter}`, ccToken, 50, 0, market)
+      );
+      if (yearFilter) {
+        genreSearches.push(
+          searchForTracks(`genre:"${tag}"`, ccToken, 50, 0, market)
+        );
+      }
+    }
+  }
+
+  // ── Artist searches in parallel (enrichment) ──
   const artistSearches: Promise<RawTrack[]>[] = [];
   for (const genre of genres) {
-    const artists = shuffle(GENRE_ARTISTS[genre] ?? []).slice(0, 10);
+    const artists = shuffle(GENRE_ARTISTS[genre] ?? []).slice(0, 8);
     for (const artist of artists) {
       const query = `artist:${artist}${yearFilter}`;
       const normalQ = artist.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -634,66 +645,29 @@ async function handleQuickFetch(
     }
   }
 
-  // Also fire genre tag searches in parallel
-  const genreSearches: Promise<RawTrack[]>[] = [];
-  for (const genre of genres) {
-    const tags = GENRE_SEARCH_TAGS[genre] ?? [genre];
-    for (const tag of shuffle(tags).slice(0, 2)) {
-      genreSearches.push(
-        searchForTracks(`genre:"${tag}"${yearFilter}`, ccToken, 20, 0, market)
-      );
-    }
-  }
-
-  const [artistResults, genreResults] = await Promise.all([
-    Promise.all(artistSearches),
+  const [genreResults, artistResults] = await Promise.all([
     Promise.all(genreSearches),
+    Promise.all(artistSearches),
   ]);
 
   let candidates = [
-    ...artistResults.flat(),
     ...genreResults.flat(),
+    ...artistResults.flat(),
   ];
 
   candidates = dedupTracks(candidates).filter(t => isValidTrack(t, popularityFloor));
   console.log(`[API/songs] Quick mode: ${candidates.length} candidates after filter`);
 
-  // If still too few, try without year filter
-  if (candidates.length < quickCount * 3 && yearFilter) {
-    const fallbackSearches: Promise<RawTrack[]>[] = [];
-    for (const genre of genres) {
-      const tags = GENRE_SEARCH_TAGS[genre] ?? [genre];
-      for (const tag of shuffle(tags).slice(0, 2)) {
-        fallbackSearches.push(searchForTracks(`genre:"${tag}"`, ccToken, 20, 0, market));
-      }
-    }
-    const fallbackResults = await Promise.all(fallbackSearches);
-    const existingIds = new Set(candidates.map(t => t.id));
-    const fallback = fallbackResults.flat().filter(t => !existingIds.has(t.id) && isValidTrack(t, popularityFloor));
-    candidates.push(...fallback);
-    console.log(`[API/songs] Quick mode after fallback: ${candidates.length} candidates`);
-  }
+  // Sort by popularity, keep top 60 for preview resolution
+  candidates = candidates.sort((a, b) => b.popularity - a.popularity).slice(0, 60);
 
-  // Resolve previews
-  const previewMap = new Map<string, string>();
-  for (const t of candidates) {
-    if (t.preview_url) previewMap.set(t.id, t.preview_url);
-  }
-
-  const missing = candidates.filter(t => !previewMap.has(t.id));
-  if (missing.length > 0) {
-    const itunesPreviews = await enrichWithItunesPreviews(missing);
-    for (const [id, url] of itunesPreviews) {
-      previewMap.set(id, url);
-    }
-  }
+  // ── Resolve previews using the SAME approach as full pipeline ──
+  const previewMap = await resolvePreviews(candidates, userToken, market);
 
   const withPreviews = candidates.filter(t => previewMap.has(t.id));
   console.log(`[API/songs] Quick mode: ${withPreviews.length} with previews from ${candidates.length} candidates`);
 
-  // Sort by popularity and take top N
-  const result = withPreviews
-    .sort((a, b) => b.popularity - a.popularity)
+  const result = shuffle(withPreviews)
     .slice(0, quickCount)
     .map(t => toResponseTrack(t, previewMap.get(t.id)!));
 
@@ -719,7 +693,7 @@ export async function POST(request: Request) {
     const mkt = market || "US";
 
     if (quick) {
-      return handleQuickFetch(genres, eras ?? [], mkt, quickCount ?? 3);
+      return handleQuickFetch(genres, eras ?? [], mkt, quickCount ?? 3, userToken);
     }
 
     const ccToken = await getClientCredentialsToken();
